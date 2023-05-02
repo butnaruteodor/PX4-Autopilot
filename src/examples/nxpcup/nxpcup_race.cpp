@@ -1,135 +1,357 @@
-/****************************************************************************
- *
- *   Copyright 2019 NXP.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
-
-/**
- * @file hello_example.cpp
- * Race code for NXP Cup
- *
- * @author Katrin Moritz
- */
-
 #include "nxpcup_race.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <cmath>
+#include <systemlib/err.h>
+#include <drivers/drv_hrt.h>
+#include <px4_platform_common/px4_config.h>
+#include <uORB/topics/battery_status.h>
 
-uint8_t get_num_vectors(Vector &vec1, Vector &vec2) {
+const int PREVIOUS_STEERING_VALUES = 5;
+// const float SMOOTHING_FACTOR = 0.1f;
+// const float STEERING_GAIN = 1.5f;
+
+const float SPEED_MAX = 0.85f;
+const float SPEED_MIN = 0.85f;
+//when are suden
+//const float KP_MIN = 1.0f;
+const float KP_MAX = 1.5f;
+
+
+const float BATTERY_VOLTAGE_MIN = 6.2f;
+const float BATTERY_VOLTAGE_MAX = 8.4f;
+
+// float lane_width_modulation(float slope) {
+//     float slope_abs = fabs(slope);
+//     float modulation;
+
+//     // Use a piecewise linear function to modulate lane_width based on the slope
+//     if (slope_abs < 0.3f) {
+//         modulation = 1.0f;
+//     } else if (slope_abs < 0.5f && slope_abs>=0.3f) {
+//         // Calculate the linear interpolation between modulation values 1.0f and 1.2f
+//         modulation = 1.0f + (1.2f - 1.0f) * ((slope_abs - 0.3f) / (0.5f - 0.3f));
+//     } else if (slope_abs < 0.7f && slope_abs >=0.5f) {
+//         // Calculate the linear interpolation between modulation values 1.2f and 1.4f
+//         modulation = 1.2f + (1.4f - 1.2f) * ((slope_abs - 0.5f) / (0.7f - 0.5f));
+//     } else {
+//         modulation = 1.4f;
+//     }       // Calculate the linear interpolation between modulation values 1.0f and 1.2f
+
+
+//     return modulation;
+// }
+
+
+
+// float lane_width_modulation(float slope) {
+//     float slope_abs = fabs(slope);
+//     float angle = atan(slope_abs); // Calculate angle from slope (in radians)
+//     float angle_deg = angle * (180.0f /(float)M_PI); // Convert angle to degrees
+
+//     // Linear interpolation between modulation values 1.0f and 1.4f
+//     float modulation = 1.0f + (1.4f - 1.0f) * (1.0f - angle_deg / 90.0f);
+
+//     return modulation;
+// }
+
+
+
+//activate
+
+uint8_t get_num_vectors(Vector &vec1, Vector &vec2)
+{
+
 	uint8_t numVectors = 0;
-	if(!(vec1.m_x0 == 0 && vec1.m_x1 == 0 && vec1.m_y0 == 0 && vec1.m_y1 == 0)) numVectors++;
-	if(!(vec2.m_x0 == 0 && vec2.m_x1 == 0 && vec2.m_y0 == 0 && vec2.m_y1 == 0)) numVectors++;
+
+	if (!(vec1.m_x0 == 0 && vec1.m_x1 == 0 && vec1.m_y0 == 0 && vec1.m_y1 == 0)) {
+		numVectors++;
+	}
+
+	if (!(vec2.m_x0 == 0 && vec2.m_x1 == 0 && vec2.m_y0 == 0 && vec2.m_y1 == 0)) {
+		numVectors++;
+	}
+
 	return numVectors;
 }
 
-Vector copy_vectors(const pixy_vector_s &pixy, uint8_t num) {
+Vector copy_vectors(const pixy_vector_s &pixy, uint8_t num)
+{
 	Vector vec;
-	if(num == 1) {
+
+	if (num == 1) {
 		vec.m_x0 = pixy.m0_x0;
 		vec.m_x1 = pixy.m0_x1;
 		vec.m_y0 = pixy.m0_y0;
 		vec.m_y1 = pixy.m0_y1;
 	}
-	if(num == 2) {
+
+	if (num == 2) {
 		vec.m_x0 = pixy.m1_x0;
 		vec.m_x1 = pixy.m1_x1;
 		vec.m_y0 = pixy.m1_y0;
 		vec.m_y1 = pixy.m1_y1;
 	}
+
 	return vec;
 }
 
 roverControl raceTrack(const pixy_vector_s &pixy)
 {
+
+// Subscribe to the battery_status topic
+	static int battery_status_sub = orb_subscribe(ORB_ID(battery_status));
+
+	// Declare a battery_status_s structure to store the battery data
+	static struct battery_status_s battery_status;
+	bool updated = false;
+	orb_check(battery_status_sub, &updated);
+
+	static float battery_voltage = 0.0f;
+	static float scaled_speed = 0.0f;
+
+	if (battery_voltage > 8.4f) {
+		battery_voltage = 8.4f;
+	}
+
+	if (updated) {
+		orb_copy(ORB_ID(battery_status), battery_status_sub, &battery_status);
+
+		// Access the battery status data
+		battery_voltage = battery_status.voltage_v;
+		//printf("Battery voltage: %.2f V\n", double(battery_voltage));
+	}
+
+	// Scale the speed according to battery voltage
+	if (battery_voltage >= BATTERY_VOLTAGE_MIN && battery_voltage <= BATTERY_VOLTAGE_MAX) {
+		float voltage_range = BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN;
+		float speed_range = SPEED_MAX - SPEED_MIN;
+		scaled_speed = SPEED_MIN + (((BATTERY_VOLTAGE_MAX - battery_voltage) / voltage_range) * speed_range);
+
+	} else {
+		scaled_speed = SPEED_MAX;
+	}
+
+
+
+
 	Vector main_vec;
 	Vector vec1 = copy_vectors(pixy, 1);
 	Vector vec2 = copy_vectors(pixy, 2);
 	uint8_t frameWidth = 79;
 	uint8_t frameHeight = 52;
-	int16_t window_center = (frameWidth / 2);
 	roverControl control{};
-	float x, y;					 // calc gradient and position of main vector
-	static hrt_abstime no_line_time = 0;		// time variable for time since no line detected
-	hrt_abstime time_diff = 0;
-	static bool first_call = true;
+	float x, y; // calc gradient and position of main vector
 	uint8_t num_vectors = get_num_vectors(vec1, vec2);
 
+	static float previous_steering_values[PREVIOUS_STEERING_VALUES] = {0};
+	static int steering_index = 0;
+
+	// static float filtered_steering = 0.0f;
+	printf("num_vectors %u\n", num_vectors);
 
 	switch (num_vectors) {
-	case 0:
-		if(first_call){
-			no_line_time = hrt_absolute_time();
-			first_call = false;
-		}else{
-			time_diff = hrt_elapsed_time_atomic(&no_line_time);
-			control.steer = 0.0f;
-			if(time_diff > 10000){
-				/* Stopping if no vector is available */
-				control.steer = 0.0f;
-				control.speed = SPEED_STOP;
+	case 0: {
+			float sum = 0.0f;
+
+			for (int i = 0; i < PREVIOUS_STEERING_VALUES; i++) {
+				sum += previous_steering_values[i];
 			}
+
+			control.steer = sum / PREVIOUS_STEERING_VALUES;
+			control.steer *= 0.3f;
+
+			//control.steer *= 0.0f;
+			if (control.steer > 1) {
+				control.steer = 1;
+
+			} else if (control.steer < -1) {
+				control.steer = -1;
+			}
+
+			// control.speed = 0.03f;
+			//
+			// previous_steering_values[steering_index++] = control.steer;
+			// if (steering_index >= PREVIOUS_STEERING_VALUES)
+			// {
+			// 	steering_index = 0;
+			// }
 		}
 		break;
 
-	case 2:
-		first_call = true;
+	case 2: {
+			main_vec.m_x1 = (vec1.m_x1 + vec2.m_x1) / 2;
+			main_vec.m_x0 = (vec1.m_x0 + vec2.m_x0) / 2;
+			main_vec.m_y1 = (vec1.m_y1 + vec2.m_y1) / 2;
+			main_vec.m_y0 = (vec1.m_y0 + vec2.m_y0) / 2;
 
-		/* Very simple steering angle calculation, get average of the x of top two points and 
-		   find distance from center of frame */
-		main_vec.m_x1 = (vec1.m_x1 + vec2.m_x1) / 2;
-		control.steer = (float)(main_vec.m_x1 - window_center) / (float)frameWidth;
+			x = (float)(main_vec.m_x1 - main_vec.m_x0) / (float)frameWidth;
+			y = (float)(main_vec.m_y1 - main_vec.m_y0) / (float)frameHeight;
 
-		control.speed = SPEED_FAST;
+			// avoid dividing by 0(the else shouldnt happen because we filter horizontal lines)
+			if (y > 0.01f || y < -0.01f) {
+				control.steer = x / y; // Gradient of the main vector
+
+			} else {
+				// go straight
+				control.steer = 0;
+			}
+
+			// to be sure its in the range [-1,1]
+			if (control.steer > 1) {
+				control.steer = 1;
+
+			} else if (control.steer < -1) {
+				control.steer = -1;
+			}
+
+			// Adjust the steering gain based on the speed
+			// control.steer *= STEERING_GAIN;
+			// control.speed = SPEED_NORMAL;
+			control.steer = -control.steer;
+			previous_steering_values[steering_index++] = control.steer;
+
+			if (steering_index >= PREVIOUS_STEERING_VALUES) {
+				steering_index = 0;
+			}
+
+			// control.speed = 0.05f;
+		}
 		break;
 
-	default:
-		first_call = true;
-		/* Following the main vector */
-		if (vec1.m_x1 > vec1.m_x0) {
-			x = (float)(vec1.m_x1 - vec1.m_x0) / (float)frameWidth;
-			y = (float)(vec1.m_y1 - vec1.m_y0) / (float)frameHeight;
-		} else {
-			x = (float)(vec1.m_x0 - vec1.m_x1) / (float)frameWidth;
-			y = (float)(vec1.m_y0 - vec1.m_y1) / (float)frameHeight;
+	// default:{
+	// 	// first_call = true;
+	// 	/* Following the main vector */
+	// 	Vector single_vec;
+
+	// 	if (vec1.m_x0 != 0 || vec1.m_y0 != 0 || vec1.m_x1 != 0 || vec1.m_y1 != 0) {
+	// 		single_vec = vec1;
+
+	// 	} else {
+	// 		single_vec = vec2;
+	// 	}
+
+	// 	x = (float)(single_vec.m_x1 - single_vec.m_x0) / (float)frameWidth;
+	// 	y = (float)(single_vec.m_y1 - single_vec.m_y0) / (float)frameHeight;
+
+	// 	// Calculate the midpoint of the line
+	// 	float midpoint_x = (float)(single_vec.m_x1 + single_vec.m_x0) / 2;
+	// 	//float midpoint_y = (float)(single_vec.m_y1 + single_vec.m_y0) / 2;
+
+	// 	// Calculate the relative position of the midpoint
+	// 	float rel_midpoint_x = (midpoint_x / (float)frameWidth) - 0.5f;
+
+	// 	//float rel_midpoint_y = (midpoint_y / (float)frameHeight) - 0.5f;
+
+
+	// 	// avoid dividing by 0(the else shouldnt happen because we filter horizontal lines)
+	// 	if (y > 0.01f || y < -0.01f) {
+	// 		control.steer = x / y; // Gradient of the main vector
+	// 		float offset = rel_midpoint_x * 1.1f; // You can adjust the weight of the offset term by multiplying it by a constant
+
+	// 		control.steer += offset; // Gradient of the main vector and the relative position of the line
+
+	// 	} else {
+	// 		// go straight
+	// 		control.steer = 0;
+	// 	}
+
+	// 	// to be sure its in the range [-1,1]
+	// 	if (control.steer > 1) {
+	// 		control.steer = 1;
+
+	// 	} else if (control.steer < -1) {
+	// 		control.steer = -1;
+	// 	}
+	//     control.steer = -control.steer;
+
+	// 	// Adjust the steering gain based on the speed
+	// 	// control.steer *= STEERING_GAIN;
+	// 	// control.speed = SPEED_NORMAL;
+
+	// 	previous_steering_values[steering_index++] = control.steer;
+
+	// 	if (steering_index >= PREVIOUS_STEERING_VALUES) {
+	// 		steering_index = 0;
+	// 	}
+
+	// 	break;
+
+	// }
+
+
+	default: {
+			Vector single_vec;
+
+			if (vec1.m_x0 != 0 || vec1.m_y0 != 0 || vec1.m_x1 != 0 || vec1.m_y1 != 0) {
+				single_vec = vec1;
+				// printf("vec1\n");
+
+			} else {
+				single_vec = vec2;
+				// printf("vec2\n");
+			}
+
+			static float last_error = 0;
+			float single_vec_slope = (float)(single_vec.m_y1 - single_vec.m_y0) / (float)(single_vec.m_x1 - single_vec.m_x0);
+			float single_vec_midpoint_x = (float)(single_vec.m_x1 + single_vec.m_x0) / 2;
+
+			float base_lane_width = 78.0f;
+			//float modulation = lane_width_modulation(single_vec_slope);
+			float estimated_lane_width = base_lane_width; //* modulation;
+			float estimated_other_boundary_midpoint_x;
+
+			if (single_vec_slope > 0) {
+				estimated_other_boundary_midpoint_x = single_vec_midpoint_x + estimated_lane_width;
+
+			} else  {
+				estimated_other_boundary_midpoint_x = single_vec_midpoint_x - estimated_lane_width;
+			}
+
+			float lane_center_x = (single_vec_midpoint_x + estimated_other_boundary_midpoint_x) / 2;
+			float error = (lane_center_x / (float)frameWidth) - 0.5f;
+
+			// Implement proportional-derivative control for steering
+			float Kp = KP_MAX; // Proportional gain
+			float Kd = 0.5f; // Derivative gain
+
+			// Calculate the steering angle using proportional-derivative control
+			float derivative = error - last_error;
+			control.steer = -(Kp * error + Kd * derivative);
+
+			// Update last_error
+			last_error = error;
+
+			// Make sure the steering angle is within the range [-1, 1]
+			if (control.steer > 1) {
+				control.steer = 1;
+
+			} else if (control.steer < -1) {
+				control.steer = -1;
+			}
+
+			previous_steering_values[steering_index++] = control.steer;
+
+			if (steering_index >= PREVIOUS_STEERING_VALUES) {
+				steering_index = 0;
+			}
+
+			break;
 		}
-		if(vec1.m_x0 != vec1.m_x1){
-			control.steer = (-1) * x / y; // Gradient of the main vector
-			control.speed = SPEED_NORMAL;
-		}else{
-			control.steer = 0.0;
-			control.speed = SPEED_SLOW;
-		}
-		break;
+
+
+
+
+		//control.speed = 0.33f;
+
 	}
 
+	control.speed = scaled_speed - (0.02f * (float)fabs(scaled_speed));
+	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
+	//control.speed = 1;
+	//control.steer =.5f;
+
 	return control;
+
 }

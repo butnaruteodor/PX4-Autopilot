@@ -66,8 +66,7 @@
 
 #define LINE_MAX_INTERSECTION_LINES 6
 
-struct Vector
-{
+struct Vector {
 	void print()
 	{
 		char buf[64];
@@ -83,16 +82,14 @@ struct Vector
 	uint8_t m_index;
 	uint8_t m_flags;
 };
-
-struct IntersectionLine
-{
+typedef Vector Vec;
+struct IntersectionLine {
 	uint8_t m_index;
 	uint8_t m_reserved;
 	int16_t m_angle;
 };
 
-struct Intersection
-{
+struct Intersection {
 	void print()
 	{
 		char buf[64];
@@ -100,8 +97,7 @@ struct Intersection
 		sprintf(buf, "intersection: (%d %d)", m_x, m_y);
 
 		//Serial.println(buf);
-		for (i = 0; i < m_n; i++)
-		{
+		for (i = 0; i < m_n; i++) {
 			sprintf(buf, "  %d: index: %d angle: %d", i, m_intLines[i].m_index, m_intLines[i].m_angle);
 			//Serial.println(buf);
 		}
@@ -115,8 +111,7 @@ struct Intersection
 	IntersectionLine m_intLines[LINE_MAX_INTERSECTION_LINES];
 };
 
-struct Barcode
-{
+struct Barcode {
 	void print()
 	{
 		char buf[64];
@@ -186,8 +181,7 @@ int8_t Pixy2Line<LinkType>::getFeatures(uint8_t type, uint8_t features, bool wai
 	barcodes = NULL;
 	numBarcodes = 0;
 
-	while (1)
-	{
+	while (1) {
 		// fill in request data
 		m_pixy->m_length = 2;
 		m_pixy->m_type = LINE_REQUEST_GET_FEATURES;
@@ -197,59 +191,49 @@ int8_t Pixy2Line<LinkType>::getFeatures(uint8_t type, uint8_t features, bool wai
 		// send request
 		m_pixy->sendPacket();
 
-		if (m_pixy->recvPacket() == 0)
-		{
-			if (m_pixy->m_type == LINE_RESPONSE_GET_FEATURES)
-			{
+		if (m_pixy->recvPacket() == 0) {
+			if (m_pixy->m_type == LINE_RESPONSE_GET_FEATURES) {
 				// parse line response
-				for (offset = 0, res = 0; m_pixy->m_length > offset; offset += fsize + 2)
-				{
+				for (offset = 0, res = 0; m_pixy->m_length > offset; offset += fsize + 2) {
 					ftype = m_pixy->m_buf[offset];
 					fsize = m_pixy->m_buf[offset + 1];
 					fdata = &m_pixy->m_buf[offset + 2];
 
-					if (ftype == LINE_VECTOR)
-					{
+					if (ftype == LINE_VECTOR) {
 						vectors = (Vector *)fdata;
 						numVectors = fsize / sizeof(Vector);
 						res |= LINE_VECTOR;
-					}
-					else if (ftype == LINE_INTERSECTION)
-					{
+
+					} else if (ftype == LINE_INTERSECTION) {
 						intersections = (Intersection *)fdata;
 						numIntersections = fsize / sizeof(Intersection);
 						res |= LINE_INTERSECTION;
-					}
-					else if (ftype == LINE_BARCODE)
-					{
+
+					} else if (ftype == LINE_BARCODE) {
 						barcodes = (Barcode *)fdata;
 						numBarcodes = fsize / sizeof(Barcode);
 						;
 						res |= LINE_BARCODE;
-					}
-					else
-					{
+
+					} else {
 						break; // parse error
 					}
 				}
 
 				return res;
-			}
-			else if (m_pixy->m_type == PIXY_TYPE_RESPONSE_ERROR)
-			{
+
+			} else if (m_pixy->m_type == PIXY_TYPE_RESPONSE_ERROR) {
 				// if it's not a busy response, return the error
-				if ((int8_t)m_pixy->m_buf[0] != PIXY_RESULT_BUSY)
-				{
+				if ((int8_t)m_pixy->m_buf[0] != PIXY_RESULT_BUSY) {
 					return m_pixy->m_buf[0];
-				}
-				else if (!wait)
-				{							 // we're busy
+
+				} else if (!wait) {
+					// we're busy
 					return PIXY_RESULT_BUSY; // new data not available yet
 				}
 			}
-		}
-		else
-		{
+
+		} else {
 			return PIXY_RESULT_ERROR; // some kind of bitstream error
 		}
 
@@ -270,13 +254,11 @@ int8_t Pixy2Line<LinkType>::setMode(uint8_t mode)
 	m_pixy->m_type = LINE_REQUEST_SET_MODE;
 	m_pixy->sendPacket();
 
-	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4)
-	{
+	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4) {
 		res = *(uint32_t *)m_pixy->m_buf;
 		return (int8_t)res;
-	}
-	else
-	{
+
+	} else {
 		return PIXY_RESULT_ERROR; // some kind of bitstream error
 	}
 }
@@ -291,13 +273,11 @@ int8_t Pixy2Line<LinkType>::setNextTurn(int16_t angle)
 	m_pixy->m_type = LINE_REQUEST_SET_NEXT_TURN_ANGLE;
 	m_pixy->sendPacket();
 
-	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4)
-	{
+	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4) {
 		res = *(uint32_t *)m_pixy->m_buf;
 		return (int8_t)res;
-	}
-	else
-	{
+
+	} else {
 		return PIXY_RESULT_ERROR; // some kind of bitstream error
 	}
 }
@@ -312,13 +292,11 @@ int8_t Pixy2Line<LinkType>::setDefaultTurn(int16_t angle)
 	m_pixy->m_type = LINE_REQUEST_SET_DEFAULT_TURN_ANGLE;
 	m_pixy->sendPacket();
 
-	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4)
-	{
+	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4) {
 		res = *(uint32_t *)m_pixy->m_buf;
 		return (int8_t)res;
-	}
-	else
-	{
+
+	} else {
 		return PIXY_RESULT_ERROR; // some kind of bitstream error
 	}
 }
@@ -333,13 +311,11 @@ int8_t Pixy2Line<LinkType>::setVector(uint8_t index)
 	m_pixy->m_type = LINE_REQUEST_SET_VECTOR;
 	m_pixy->sendPacket();
 
-	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4)
-	{
+	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4) {
 		res = *(uint32_t *)m_pixy->m_buf;
 		return (int8_t)res;
-	}
-	else
-	{
+
+	} else {
 		return PIXY_RESULT_ERROR; // some kind of bitstream error
 	}
 }
@@ -353,13 +329,11 @@ int8_t Pixy2Line<LinkType>::reverseVector()
 	m_pixy->m_type = LINE_REQUEST_REVERSE_VECTOR;
 	m_pixy->sendPacket();
 
-	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4)
-	{
+	if (m_pixy->recvPacket() == 0 && m_pixy->m_type == PIXY_TYPE_RESPONSE_RESULT && m_pixy->m_length == 4) {
 		res = *(uint32_t *)m_pixy->m_buf;
 		return (int8_t)res;
-	}
-	else
-	{
+
+	} else {
 		return PIXY_RESULT_ERROR; // some kind of bitstream error
 	}
 }

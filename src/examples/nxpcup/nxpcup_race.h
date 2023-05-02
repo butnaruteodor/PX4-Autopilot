@@ -60,8 +60,7 @@ struct _vector {
 	float grad;
 };
 
-struct Vector
-{
+struct Vector {
 	void print()
 	{
 		char buf[64];

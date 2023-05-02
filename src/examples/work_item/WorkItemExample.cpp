@@ -35,6 +35,30 @@
 
 #include <drivers/drv_hrt.h>
 
+#define GPIO_PORT_SHIFT        (8)  /* Bits 8-10: port number */
+#define GPIO_PORT_MASK         (7 << GPIO_PORT_SHIFT)
+#define GPIO_PIN_SHIFT             (0)  /* Bits 0-4: port number */
+#define GPIO_PIN_MASK              (31 << GPIO_PIN_SHIFT)
+
+#define GPIO_IN_QUAD (GPIO_INPUT | ((2<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((1 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
+
+volatile float rev_count = 0;
+volatile float prevPulseMicros = 0;
+static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
+{
+	// rev_count++;
+	float currentMicros = hrt_absolute_time();
+	float pulseInterval = currentMicros - prevPulseMicros;
+	prevPulseMicros = currentMicros;
+
+	if (pulseInterval > 0) {
+		rev_count = (60.0f * 1000000.0f) / pulseInterval;
+	}
+
+	printf("da\n");
+	return 0;
+}
+
 using namespace time_literals;
 
 WorkItemExample::WorkItemExample() :
@@ -51,8 +75,11 @@ WorkItemExample::~WorkItemExample()
 
 bool WorkItemExample::init()
 {
-	ScheduleOnInterval(1000_us); // 1000 us interval, 1000 Hz rate
-
+	ScheduleOnInterval(10000_us); // 10000 us interval, 10000 Hz rate
+	px4_arch_configgpio(GPIO_IN_QUAD);
+	// // rising edge
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, false, true, &handleQuadratureEncIRQ, NULL);
+	// PX4_INFO("WorkItemExample::init()\n");
 	return true;
 }
 
@@ -70,20 +97,26 @@ void WorkItemExample::Run()
 
 	// DO WORK
 
+	int val = rev_count;
+	rev_count -= val;
+	printf("Work: %d\n", val);
+	struct rev_counter_s rev_structure;
+	rev_structure.timestamp = hrt_absolute_time();
+	rev_structure.counter = val;
+	_rev_counter_pub.publish(rev_structure);
+
+	// // Example
+	// // grab latest accelerometer data
+	// _sensor_accel_sub.update();
+	// const sensor_accel_s &accel = _sensor_accel_sub.get();
 
 
-	// Example
-	// grab latest accelerometer data
-	_sensor_accel_sub.update();
-	const sensor_accel_s &accel = _sensor_accel_sub.get();
-
-
-	// Example
-	// publish some data
-	orb_test_s data{};
-	data.timestamp = hrt_absolute_time();
-	data.val = accel.device_id;
-	_orb_test_pub.publish(data);
+	// // Example
+	// // publish some data
+	// orb_test_s data{};
+	// data.timestamp = hrt_absolute_time();
+	// data.val = accel.device_id;
+	// _orb_test_pub.publish(data);
 
 
 

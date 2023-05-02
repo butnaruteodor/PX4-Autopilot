@@ -52,7 +52,6 @@ set(msg_files
 	control_allocator_status.msg
 	cpuload.msg
 	differential_pressure.msg
-	distance_sensor.msg
 	ekf2_timestamps.msg
 	ekf_gps_drift.msg
 	esc_report.msg
@@ -185,6 +184,9 @@ set(msg_files
 	wheel_encoders.msg
 	wind.msg
 	yaw_estimator_status.msg
+	start_line_detected.msg
+	distance_sensor.msg
+	rev_counter.msg
 )
 
 if(NOT px4_constrained_flash_build)

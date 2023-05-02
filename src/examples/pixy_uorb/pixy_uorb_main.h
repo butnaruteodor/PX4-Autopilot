@@ -55,6 +55,8 @@
 #include <uORB/Publication.hpp>
 #include <uORB/uORB.h>
 #include <uORB/topics/pixy_vector.h>
+#include <uORB/topics/start_line_detected.h>
+#include <uORB/topics/distance_sensor.h>
 
 #include "TPixy2.h"
 #include "Pixy2CCC.h"

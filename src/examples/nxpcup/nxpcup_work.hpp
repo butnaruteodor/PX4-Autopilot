@@ -47,6 +47,8 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/start_line_detected.h>
+#include <uORB/topics/distance_sensor.h>
 #include <lib/matrix/matrix/Euler.hpp>
 #include <lib/matrix/matrix/Quaternion.hpp>
 
@@ -73,6 +75,8 @@ public:
 
 private:
 	void Run() override;
+	bool detectStartLine();
+	float readDistance();
 
 	/* Publications */
 	uORB::Publication<vehicle_control_mode_s> _control_mode_pub{ORB_ID(vehicle_control_mode)};
@@ -80,7 +84,9 @@ private:
 
 	/* Subscriptions */
 	uORB::SubscriptionData<pixy_vector_s> pixy_sub{ORB_ID(pixy_vector)};
+	uORB::SubscriptionData<start_line_detected_s> start_line_detected_sub{ORB_ID(start_line_detected)};
 	uORB::SubscriptionData<vehicle_attitude_s> att_sub{ORB_ID(vehicle_attitude)};
+	uORB::SubscriptionData<distance_sensor_s> distance_sub{ORB_ID(distance_sensor)};
 
 	void roverSteerSpeed(roverControl control, vehicle_attitude_setpoint_s &_att_sp, vehicle_attitude_s &att);
 

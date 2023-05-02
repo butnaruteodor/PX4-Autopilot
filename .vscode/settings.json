@@ -138,5 +138,17 @@
         "workbench.settings.enableNaturalLanguageSearch": false,
         "yaml.schemas": {
                 "${workspaceFolder}/validation/module_schema.yaml": "${workspaceFolder}/src/modules/*/module.yaml"
-        }
+        },
+        "python.autoComplete.extraPaths": [
+                "/home/teo/ros2ws/install/nxp_cup_vision/lib/python3.8/site-packages",
+                "/home/teo/ros2ws/install/aim_line_follow/lib/python3.8/site-packages",
+                "/home/teo/ros2ws/install/nxp_cup_interfaces/lib/python3.8/site-packages",
+                "/opt/ros/galactic/lib/python3.8/site-packages"
+        ],
+        "python.analysis.extraPaths": [
+                "/home/teo/ros2ws/install/nxp_cup_vision/lib/python3.8/site-packages",
+                "/home/teo/ros2ws/install/aim_line_follow/lib/python3.8/site-packages",
+                "/home/teo/ros2ws/install/nxp_cup_interfaces/lib/python3.8/site-packages",
+                "/opt/ros/galactic/lib/python3.8/site-packages"
+        ]
 }
