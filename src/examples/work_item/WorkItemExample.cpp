@@ -40,7 +40,7 @@
 #define GPIO_PIN_SHIFT             (0)  /* Bits 0-4: port number */
 #define GPIO_PIN_MASK              (31 << GPIO_PIN_SHIFT)
 
-#define GPIO_IN_QUAD (GPIO_INPUT | ((2<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((1 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
+#define GPIO_IN_QUAD (GPIO_INPUT | ((4<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((12 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
 
 volatile float rev_count = 0;
 volatile float prevPulseMicros = 0;
@@ -52,10 +52,10 @@ static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 	prevPulseMicros = currentMicros;
 
 	if (pulseInterval > 0) {
-		rev_count = (60.0f * 1000000.0f) / pulseInterval;
+		rev_count = (1000000.0f) / pulseInterval;
 	}
 
-	printf("da\n");
+	//printf("da\n");
 	return 0;
 }
 
@@ -97,12 +97,12 @@ void WorkItemExample::Run()
 
 	// DO WORK
 
-	int val = rev_count;
-	rev_count -= val;
-	printf("Work: %d\n", val);
+	//int val = rev_count;
+	//rev_count -= val;
+	printf("Work: %d\n", (int)rev_count);
 	struct rev_counter_s rev_structure;
 	rev_structure.timestamp = hrt_absolute_time();
-	rev_structure.counter = val;
+	rev_structure.counter = rev_count;
 	_rev_counter_pub.publish(rev_structure);
 
 	// // Example
