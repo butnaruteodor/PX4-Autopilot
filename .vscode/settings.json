@@ -150,5 +150,6 @@
                 "/home/teo/ros2ws/install/aim_line_follow/lib/python3.8/site-packages",
                 "/home/teo/ros2ws/install/nxp_cup_interfaces/lib/python3.8/site-packages",
                 "/opt/ros/galactic/lib/python3.8/site-packages"
-        ]
+        ],
+        "ros.distro": "galactic"
 }

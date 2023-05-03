@@ -115,10 +115,7 @@ void WorkItemExample::Run()
 	perf_begin(_loop_perf);
 	perf_count(_loop_interval_perf);
 
-
 	// DO WORK
-
-
 
 	struct rev_counter_s rev_structure;
 

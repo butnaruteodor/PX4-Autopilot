@@ -35,14 +35,37 @@
 
 #include <drivers/drv_hrt.h>
 
+
 using namespace time_literals;
 
 typedef enum {
 	Idle,
 	WaitForStart,
 	Driving,
-	ObstacleDetection
+	ObstacleDetection,
+	stop
 } State;
+
+void brake(unsigned long pwm_value)
+{
+	const char *dev = "/dev/pwm_output0";
+	int fd = px4_open(dev, 0);
+
+	if (fd < 0) {
+		PX4_ERR("can't open %s", dev);
+		return;
+	}
+
+	int ret = px4_ioctl(fd, PWM_SERVO_SET(3), pwm_value);
+
+	if (ret != OK) {
+		PX4_ERR("failed setting brake");
+	}
+
+	if (fd >= 0) {
+		px4_close(fd);
+	}
+}
 
 NxpCupWork::NxpCupWork() :
 	ModuleParams(nullptr),
@@ -157,7 +180,7 @@ void NxpCupWork::Run()
 
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
-			_att_sp.thrust_body[0] = 0.75f;
+			_att_sp.thrust_body[0] = 0.33f;
 			_control_mode.timestamp = hrt_absolute_time();
 			// publish control mode
 			_att_sp_pub.publish(_att_sp);
@@ -258,11 +281,17 @@ void NxpCupWork::Run()
 			}
 
 			if (nr_of_distance_readings > 1) {
+				for (int i = 0; i < 100000; i++) {
+					brake(900);
+				}
 
-				_att_sp.thrust_body[0] = 0.75f;
+				//usleep(200);
+				_att_sp.thrust_body[0] = 0.33f;
 				_att_sp_pub.publish(_att_sp);
-
-
+				usleep(10000);
+				//_att_sp.thrust_body[0] = 0.75f;
+				CarState = stop;
+				break;
 				//printf("Distance %f\n",static_cast<double>(readDistance()));
 			}
 
@@ -270,10 +299,23 @@ void NxpCupWork::Run()
 
 			break;
 		}
+
+	case stop: {
+			// Car is in idle state until the start button is pressed
+			for (int i = 0; i < 1000; i++) {
+				brake(1501);
+			}
+
+			CarState = WaitForStart;
+			break;
+		}
+
 	}
 
 	perf_end(_loop_perf);
 }
+
+
 
 int NxpCupWork::task_spawn(int argc, char *argv[])
 {

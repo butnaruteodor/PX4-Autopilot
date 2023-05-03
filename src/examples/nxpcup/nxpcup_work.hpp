@@ -51,7 +51,7 @@
 #include <uORB/topics/distance_sensor.h>
 #include <lib/matrix/matrix/Euler.hpp>
 #include <lib/matrix/matrix/Quaternion.hpp>
-
+#include "drivers/drv_pwm_output.h"
 #include "nxpcup_race.h"
 
 class NxpCupWork : public ModuleBase<NxpCupWork>, public ModuleParams, public px4::ScheduledWorkItem
