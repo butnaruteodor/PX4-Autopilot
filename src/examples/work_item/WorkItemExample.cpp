@@ -42,17 +42,18 @@
 
 #define GPIO_IN_QUAD (GPIO_INPUT | ((4<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((12 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
 
-volatile float rev_count = 0;
+volatile float quad_frequency = 0;
 volatile float prevPulseMicros = 0;
+volatile bool canPublish = false;
 static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 {
-	// rev_count++;
 	float currentMicros = hrt_absolute_time();
 	float pulseInterval = currentMicros - prevPulseMicros;
 	prevPulseMicros = currentMicros;
 
 	if (pulseInterval > 0) {
-		rev_count = (1000000.0f) / pulseInterval;
+		quad_frequency = (1000000.0f) / pulseInterval;
+		canPublish = true;
 	}
 
 	//printf("da\n");
@@ -75,7 +76,7 @@ WorkItemExample::~WorkItemExample()
 
 bool WorkItemExample::init()
 {
-	ScheduleOnInterval(10000_us); // 10000 us interval, 10000 Hz rate
+	ScheduleOnInterval(100000_us); // 10000 us interval, 10000 Hz rate
 	px4_arch_configgpio(GPIO_IN_QUAD);
 	// // rising edge
 	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, false, true, &handleQuadratureEncIRQ, NULL);
@@ -97,13 +98,24 @@ void WorkItemExample::Run()
 
 	// DO WORK
 
-	//int val = rev_count;
-	//rev_count -= val;
-	printf("Work: %d\n", (int)rev_count);
+
+
 	struct rev_counter_s rev_structure;
+
 	rev_structure.timestamp = hrt_absolute_time();
-	rev_structure.counter = rev_count;
+
+	if (canPublish) {
+		rev_structure.counter = quad_frequency;
+
+		canPublish = false;
+
+	} else {
+		rev_structure.counter = 0.0f;
+	}
+
+	printf("Work: %f\n", (double)rev_structure.counter);
 	_rev_counter_pub.publish(rev_structure);
+
 
 	// // Example
 	// // grab latest accelerometer data
