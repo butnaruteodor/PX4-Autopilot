@@ -42,11 +42,31 @@
 
 #define GPIO_IN_QUAD (GPIO_INPUT | ((4<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((12 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
 
+// 7 pulses equal 1 revolution, and 1 revolution equals to a travel of 23 cm
+volatile int pulseCount = 0;
 volatile float quad_frequency = 0;
 volatile float prevPulseMicros = 0;
 volatile bool canPublish = false;
+
+float lastFrequencies[5];
+int pos = 0;
+
+// function that calculates the average of a float array
+
+static float arrayAverage(int nr, float array[10])
+{
+	float sum = 0;
+
+	for (int i = 0; i < nr; i++) {
+		sum += array[i];
+	}
+
+	return sum / (float)nr;
+}
+
 static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 {
+	pulseCount++;
 	float currentMicros = hrt_absolute_time();
 	float pulseInterval = currentMicros - prevPulseMicros;
 	prevPulseMicros = currentMicros;
@@ -105,15 +125,29 @@ void WorkItemExample::Run()
 	rev_structure.timestamp = hrt_absolute_time();
 
 	if (canPublish) {
-		rev_structure.counter = quad_frequency;
+		rev_structure.frequency = quad_frequency;
+		rev_structure.pulse_counter = pulseCount;
+
+		lastFrequencies[pos++] = rev_structure.frequency;
+
+		if (pos >= 5) {
+			pos = 0;
+		}
 
 		canPublish = false;
 
 	} else {
-		rev_structure.counter = 0.0f;
+		rev_structure.frequency = arrayAverage(5, lastFrequencies);
+		rev_structure.pulse_counter = pulseCount;
+
+		lastFrequencies[pos++] = 0;
+
+		if (pos >= 5) {
+			pos = 0;
+		}
 	}
 
-	printf("Work: %f\n", (double)rev_structure.counter);
+	printf("Freq: %5.1f, Counter: %9d\n", (double)rev_structure.frequency, rev_structure.pulse_counter);
 	_rev_counter_pub.publish(rev_structure);
 
 
