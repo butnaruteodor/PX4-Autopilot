@@ -45,6 +45,9 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
 #include <uORB/topics/rev_counter.h>
+#include <drivers/drv_pwm_output.h>
+
+bool isReady = false;
 
 class WorkItemExample : public ModuleBase<WorkItemExample>, public ModuleParams, public px4::ScheduledWorkItem
 {

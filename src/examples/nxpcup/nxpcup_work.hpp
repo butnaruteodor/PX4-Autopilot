@@ -49,6 +49,7 @@
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/start_line_detected.h>
 #include <uORB/topics/distance_sensor.h>
+#include <uORB/topics/rev_counter.h>
 #include <lib/matrix/matrix/Euler.hpp>
 #include <lib/matrix/matrix/Quaternion.hpp>
 #include "drivers/drv_pwm_output.h"
@@ -87,6 +88,7 @@ private:
 	uORB::SubscriptionData<start_line_detected_s> start_line_detected_sub{ORB_ID(start_line_detected)};
 	uORB::SubscriptionData<vehicle_attitude_s> att_sub{ORB_ID(vehicle_attitude)};
 	uORB::SubscriptionData<distance_sensor_s> distance_sub{ORB_ID(distance_sensor)};
+	uORB::SubscriptionData<rev_counter_s> rev_sub{ORB_ID(rev_counter)};
 
 	void roverSteerSpeed(roverControl control, vehicle_attitude_setpoint_s &_att_sp, vehicle_attitude_s &att);
 

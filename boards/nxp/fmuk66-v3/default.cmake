@@ -50,7 +50,7 @@ px4_add_board(
 		telemetry # all available telemetry drivers
 		#test_ppm # NOT Portable YET
 		tone_alarm
-		uavcan
+		#uavcan
 	MODULES
 		airspeed_selector
 		attitude_estimator_q
@@ -61,8 +61,8 @@ px4_add_board(
 		ekf2
 		events
 		flight_mode_manager
-		fw_att_control
-		fw_pos_control_l1
+		#fw_att_control
+		#fw_pos_control_l1
 		land_detector
 		landing_target_estimator
 		load_mon
@@ -80,7 +80,7 @@ px4_add_board(
 		sih
 		temperature_compensation
 		vmount
-		vtol_att_control
+		#vtol_att_control
 	SYSTEMCMDS
 		bl_update
 		#dmesg
@@ -111,16 +111,16 @@ px4_add_board(
 		ver
 		work_queue
 	EXAMPLES
-		fake_gps
-		fixedwing_control # Tutorial code from https://px4.io/dev/example_fixedwing_control
-		hello
+		#fake_gps
+		#fixedwing_control # Tutorial code from https://px4.io/dev/example_fixedwing_control
+		#hello
 		hwtest # Hardware test
 		nxpcup
 		pixy_uorb
 		#matlab_csv_serial
-		px4_mavlink_debug # Tutorial code from http://dev.px4.io/en/debug/debug_values.html
-		px4_simple_app # Tutorial code from http://dev.px4.io/en/apps/hello_sky.html
-		rover_steering_control # Rover example app
-		uuv_example_app
+		#px4_mavlink_debug # Tutorial code from http://dev.px4.io/en/debug/debug_values.html
+		#px4_simple_app # Tutorial code from http://dev.px4.io/en/apps/hello_sky.html
+		#rover_steering_control # Rover example app
+		#uuv_example_app
 		work_item
 	)

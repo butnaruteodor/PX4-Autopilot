@@ -45,7 +45,47 @@ typedef enum {
 	ObstacleDetection,
 	stop
 } State;
+// PID controller parameters
+float kp = 0.05;
+float ki = 0.01;
+float kd = 0.0;
+float dt = 0.01; // 10 ms loop interval in seconds
 
+// PID controller internal states
+float integral = 0.0;
+float previous_error = 0.0;
+float last_timestep = 0;
+float current_timestep = 0;
+
+float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest)
+{
+	float error = setpoint - measurement;
+
+	dt = current_timest - last_timestep;
+
+	float p_term = kp * error;
+
+	float i_term_candidate = integral + error * ki * dt;
+
+	float d_term = kd * (error - previous_error) / dt;
+	previous_error = error;
+
+	float output_candidate = p_term + i_term_candidate + d_term;
+
+	// Apply output saturation limits and integral anti-windup
+	if (output_candidate > max_output) {
+		output_candidate = max_output;
+		i_term_candidate = integral; // Prevent integral windup
+
+	} else if (output_candidate < min_output) {
+		output_candidate = min_output;
+		i_term_candidate = integral; // Prevent integral windup
+	}
+
+	integral = i_term_candidate;
+	last_timestep = current_timest;
+	return output_candidate;
+}
 void brake(unsigned long pwm_value)
 {
 	const char *dev = "/dev/pwm_output0";
@@ -81,8 +121,17 @@ NxpCupWork::~NxpCupWork()
 
 bool NxpCupWork::init()
 {
-	ScheduleOnInterval(30_ms); // 1000 us interval, 1000 Hz rate
+	ScheduleOnInterval(10_ms); // 1000 us interval, 1000 Hz rate
 
+	struct vehicle_control_mode_s _control_mode {};
+
+	_control_mode.flag_control_manual_enabled = false;
+	_control_mode.flag_control_attitude_enabled = true;
+	_control_mode.flag_control_velocity_enabled = false;
+	_control_mode.flag_control_position_enabled = false;
+
+	_control_mode.timestamp = hrt_absolute_time();
+	_control_mode_pub.publish(_control_mode);
 	return true;
 }
 
@@ -146,17 +195,15 @@ void NxpCupWork::Run()
 
 	// DO WORK
 	roverControl motorControl;
-	static State CarState = Idle;
+	static State CarState = stop;
 	static int nr_of_distance_readings = 0;
 	static float last_time = 0;
 	static float current_time = 0;
 
-	struct vehicle_control_mode_s _control_mode {};
 
-	_control_mode.flag_control_manual_enabled = false;
-	_control_mode.flag_control_attitude_enabled = true;
-	_control_mode.flag_control_velocity_enabled = false;
-	_control_mode.flag_control_position_enabled = false;
+	att_sub.update();
+	//struct vehicle_attitude_s att = att_sub.get();
+	struct vehicle_attitude_setpoint_s _att_sp {};
 
 	switch (CarState) {
 	case Idle: {
@@ -175,22 +222,23 @@ void NxpCupWork::Run()
 			// setup control structs
 			att_sub.update();
 
-			struct vehicle_attitude_s att = att_sub.get();
-			struct vehicle_attitude_setpoint_s _att_sp {};
 
 			// pre process the controls(convert steering from percent to angle, etc)
-			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
-			_att_sp.thrust_body[0] = 0.33f;
-			_control_mode.timestamp = hrt_absolute_time();
-			// publish control mode
-			_att_sp_pub.publish(_att_sp);
-			_control_mode_pub.publish(_control_mode);
+			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
-			_att_sp.timestamp = hrt_absolute_time();
+			//_att_sp.thrust_body[0] = 0.545f;
+			//_control_mode.timestamp = hrt_absolute_time();
+			//_att_sp.timestamp = hrt_absolute_time();
+			// publish control mode
+			//_control_mode_pub.publish(_control_mode);
+			//_att_sp_pub.publish(_att_sp);
+
+			//printf("Publish control mode\n");
+
 
 			if (detectStartLine() == true) {
 				last_time = hrt_absolute_time();
-				CarState = Driving;
+				//CarState = Driving;
 			}
 
 			break;
@@ -206,23 +254,17 @@ void NxpCupWork::Run()
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy);
 
-			// setup control structs
-			att_sub.update();
-
-			struct vehicle_attitude_s att = att_sub.get();
-			struct vehicle_attitude_setpoint_s _att_sp {};
-
 			// pre process the controls(convert steering from percent to angle, etc)
-			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
+			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
-			_control_mode.timestamp = hrt_absolute_time();
+			//_control_mode.timestamp = hrt_absolute_time();
 			// publish control mode
-			_control_mode_pub.publish(_control_mode);
+			//_control_mode_pub.publish(_control_mode);
 
-			_att_sp.timestamp = hrt_absolute_time();
+			//	_att_sp.timestamp = hrt_absolute_time();
 
 			// publish controls
-			_att_sp_pub.publish(_att_sp);
+			//_att_sp_pub.publish(_att_sp);
 
 			current_time = hrt_absolute_time();
 
@@ -251,20 +293,15 @@ void NxpCupWork::Run()
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy);
 
-			// setup control structs
-			att_sub.update();
-
-			struct vehicle_attitude_s att = att_sub.get();
-			struct vehicle_attitude_setpoint_s _att_sp {};
-
 			// pre process the controls(convert steering from percent to angle, etc)
-			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
+			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
-			_control_mode.timestamp = hrt_absolute_time();
+			//_control_mode.timestamp = hrt_absolute_time();
+
 			// publish control mode
-			_control_mode_pub.publish(_control_mode);
+			//_control_mode_pub.publish(_control_mode);
 
-			_att_sp.timestamp = hrt_absolute_time();
+			//_att_sp.timestamp = hrt_absolute_time();
 
 			// Throttle control of the rover
 
@@ -286,31 +323,70 @@ void NxpCupWork::Run()
 				}
 
 				//usleep(200);
-				_att_sp.thrust_body[0] = 0.33f;
-				_att_sp_pub.publish(_att_sp);
-				usleep(10000);
+				// _att_sp.thrust_body[0] = 0.33f;
+				// _att_sp_pub.publish(_att_sp);
+				// usleep(10000);
 				//_att_sp.thrust_body[0] = 0.75f;
 				CarState = stop;
 				break;
 				//printf("Distance %f\n",static_cast<double>(readDistance()));
 			}
 
-			_att_sp_pub.publish(_att_sp);
+			//_att_sp_pub.publish(_att_sp);
 
 			break;
 		}
 
 	case stop: {
 			// Car is in idle state until the start button is pressed
-			for (int i = 0; i < 1000; i++) {
-				brake(1501);
-			}
+			// for (int i = 0; i < 1000; i++) {
+			// 	brake(1501);
+			// }
 
-			CarState = WaitForStart;
+			//CarState = WaitForStart;
 			break;
 		}
 
 	}
+
+	// _att_sp.thrust_body[0] = 0.8f;
+	// _control_mode.timestamp = hrt_absolute_time();
+	// // publish control mode
+	// _att_sp_pub.publish(_att_sp);
+	// _control_mode_pub.publish(_control_mode);
+	current_timestep = hrt_absolute_time();
+	static float control_output = 0.5f;
+
+	if (current_timestep - last_timestep > 0.0f) {
+		//last_timestep = current_timestep;
+
+		rev_sub.update();
+		const rev_counter_s &rev_s = rev_sub.get();
+		float setpoint = 100.0f;
+		float current_measurement = rev_s.frequency; // Replace with your sensor reading function
+		//float control_output = calculate_pid(setpoint, current_measurement, 0.5f, 0.75f);
+		//float error = setpoint - current_measurement;
+		//control_output = kp * error;
+		control_output = calculate_pid(setpoint, current_measurement, 0.57f, 0.65f, current_timestep);
+		// if (control_output > 0.6f) {
+		// 	control_output = 0.6f;
+
+		// } else if (control_output < 0.5f) {
+		// 	control_output = 0.5f;
+		// }
+
+		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setpoint,
+		       (double)current_measurement,
+		       (double)control_output);
+		//_att_sp.thrust_body[0] = control_output;
+	}
+
+	_att_sp.thrust_body[0] = 0.15f;
+
+	_att_sp.timestamp = hrt_absolute_time();
+
+	_att_sp_pub.publish(_att_sp);
+
 
 	perf_end(_loop_perf);
 }

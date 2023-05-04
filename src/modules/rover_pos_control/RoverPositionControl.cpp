@@ -117,6 +117,7 @@ void
 RoverPositionControl::manual_control_setpoint_poll()
 {
 	if (_control_mode.flag_control_manual_enabled) {
+		///!!!PRINT
 		if (_manual_control_setpoint_sub.copy(&_manual_control_setpoint)) {
 			float dt = math::constrain(hrt_elapsed_time(&_manual_setpoint_last_called) * 1e-6f,  0.0002f, 0.04f);
 
@@ -381,7 +382,7 @@ RoverPositionControl::control_attitude(const vehicle_attitude_s &att, const vehi
 
 	const float control_throttle = att_sp.thrust_body[0];
 
-	_act_controls.control[actuator_controls_s::INDEX_THROTTLE] =  math::constrain(control_throttle, 0.0f, 1.0f);
+	_act_controls.control[actuator_controls_s::INDEX_THROTTLE] =  math::constrain(control_throttle, -1.0f, 1.0f);
 
 }
 
