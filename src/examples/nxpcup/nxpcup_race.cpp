@@ -12,8 +12,8 @@ const int PREVIOUS_STEERING_VALUES = 5;
 // const float SMOOTHING_FACTOR = 0.1f;
 // const float STEERING_GAIN = 1.5f;
 
-const float SPEED_MAX = 0.58f;
-const float SPEED_MIN = 0.58f;
+const float SPEED_MAX = 0.59f;
+const float SPEED_MIN = 0.59f;
 //when are suden
 //const float KP_MIN = 1.0f;
 const float KP_MAX = 1.5f;
@@ -132,8 +132,6 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 	} else {
 		scaled_speed = SPEED_MAX;
 	}
-
-
 
 
 	Vector main_vec;
@@ -314,7 +312,7 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 
 			// Implement proportional-derivative control for steering
 			float Kp = KP_MAX; // Proportional gain
-			float Kd = 0.5f; // Derivative gain
+			float Kd = 2.5f; // Derivative gain
 
 			// Calculate the steering angle using proportional-derivative control
 			float derivative = error - last_error;
@@ -347,7 +345,7 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 
 	}
 
-	control.speed = scaled_speed; //- (0.02f * (float)fabs(scaled_speed));
+	control.speed = scaled_speed - (0.05f * (float)fabs(scaled_speed));
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;
 	//control.steer =.5f;
