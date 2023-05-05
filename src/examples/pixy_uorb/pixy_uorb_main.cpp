@@ -1,5 +1,8 @@
 #include "pixy_uorb_main.h"
 #include <cmath>
+#include <math.h>
+
+
 
 
 void clear_console()
@@ -46,7 +49,12 @@ float dist(Vec vect)
 
 	// Check if the intersection point lies within the line segment's y bounds
 	if ((intersection_y >= y0 && intersection_y <= y1) || (intersection_y >= y1 && intersection_y <= y0)) {
-		return 0.0f;
+		float mid_x = (x0 + x1) / 2.0f;
+		float mid_y = (y0 + y1) / 2.0f;
+		//dist is
+		float dist = sqrt(pow((float)(mid_x - 39.0f), 2) + pow((float)(mid_y - 26), 2));
+		//return 0.0f;
+		return dist;
 	}
 
 	// Calculate the distances from the ends of the line segment to the vertical line
@@ -279,7 +287,8 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 
 				if (index0 != vect0.m_index && st == 1
-				    && procent_val(std::fabs((double)(slope(vect0))), std::fabs((double)(slope(vect0_old)))) > 0.5f) {
+				    && procent_val(std::fabs((double)(slope(vect0))),
+						   std::fabs((double)(slope(vect0_old)))) > 0.4f) {
 					vect0_old = vect0;
 					index0 = vect0.m_index;
 //					vec_reset(v0);
@@ -287,25 +296,27 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 
 				} else if (st == 1
-					   && procent_val(std::fabs((double)(slope(vect0))), std::fabs((double)(slope(vect0_old)))) > 0.95f) {
+					   && procent_val(std::fabs((double)(slope(vect0))),
+							  std::fabs((double)(slope(vect0_old)))) > 0.7f) {
 					vect0 = vect0_old;
 					index0 = 255;
 					printf("vect old\n");
 
 				} else {
 					printf("vect normal\n");
-
 				}
 
 				if (index1 != vect1.m_index  && dr == 1
-				    && procent_val(std::fabs((double)(slope(vect1))), std::fabs((double)(slope(vect1_old)))) > 0.5f) {
+				    && procent_val(std::fabs((double)(slope(vect1))),
+						   std::fabs((double)(slope(vect1_old)))) > 0.4f) {
 					vect1_old = vect1;
 					index1 = vect1.m_index;
-					//	vec_reset(v1);
+					//vec_reset(v1);
 					i1 = 0;
 
 				} else if (dr == 1
-					   && procent_val(std::fabs((double)(slope(vect1))), std::fabs((double)(slope(vect1_old)))) > 0.95f) {
+					   && procent_val(std::fabs((double)(slope(vect1))),
+							  std::fabs((double)(slope(vect1_old)))) > 0.7f) {
 					vect1 = vect1_old;
 					index1 = 255;
 					printf("vect old\n");
