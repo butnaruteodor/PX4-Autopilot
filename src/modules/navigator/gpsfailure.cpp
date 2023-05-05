@@ -91,6 +91,7 @@ GpsFailure::on_active()
 
 			Quatf q(Eulerf(att_sp.roll_body, att_sp.pitch_body, 0.0f));
 			q.copyTo(att_sp.q_d);
+#if 0
 
 			if (_navigator->get_vstatus()->is_vtol) {
 				_fw_virtual_att_sp_pub.publish(att_sp);
@@ -99,6 +100,8 @@ GpsFailure::on_active()
 				_att_sp_pub.publish(att_sp);
 
 			}
+
+#endif
 
 			/* Measure time */
 			if ((_param_nav_gpsf_lt.get() > FLT_EPSILON) &&

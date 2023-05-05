@@ -48,12 +48,12 @@ volatile float quad_frequency = 0;
 volatile float prevPulseMicros = 0;
 volatile bool canPublish = false;
 
-float lastFrequencies[5];
+float lastFrequencies[15];
 int pos = 0;
 
 // function that calculates the average of a float array
 
-static float arrayAverage(int nr, float array[10])
+static float arrayAverage(int nr, float array[100])
 {
 	float sum = 0;
 
@@ -63,20 +63,30 @@ static float arrayAverage(int nr, float array[10])
 
 	return sum / (float)nr;
 }
+static int handleQuadratureEncIRQ(int irq, void *context, void *arg);
+static void enableIRQ()
+{
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, true, true, &handleQuadratureEncIRQ, NULL);
+}
+static void disableIRQ()
+{
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, false, false, false, NULL, NULL);
+}
 
 static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 {
+	disableIRQ();
 	pulseCount++;
 	float currentMicros = hrt_absolute_time();
+	enableIRQ();
 	float pulseInterval = currentMicros - prevPulseMicros;
 	prevPulseMicros = currentMicros;
 
-	if (pulseInterval > 0) {
-		quad_frequency = (1000000.0f) / pulseInterval;
+	if ((double)pulseInterval > 0.0) {
+		quad_frequency = (1000000.0) / (2.0 * (double)pulseInterval);
 		canPublish = true;
 	}
 
-	//printf("da\n");
 	return 0;
 }
 
@@ -96,11 +106,12 @@ WorkItemExample::~WorkItemExample()
 
 bool WorkItemExample::init()
 {
-	ScheduleOnInterval(100000_us); // 10000 us interval, 10000 Hz rate
+	ScheduleOnInterval(10000_us); // 10000 us interval, 10000 Hz rate
 	px4_arch_configgpio(GPIO_IN_QUAD);
-	// // rising edge
-	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, false, true, &handleQuadratureEncIRQ, NULL);
+	// // rising edge and falling edge
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, true, true, &handleQuadratureEncIRQ, NULL);
 	// PX4_INFO("WorkItemExample::init()\n");
+	isReady = true;
 	return true;
 }
 
@@ -115,7 +126,10 @@ void WorkItemExample::Run()
 	perf_begin(_loop_perf);
 	perf_count(_loop_interval_perf);
 
+
 	// DO WORK
+
+
 
 	struct rev_counter_s rev_structure;
 
@@ -127,43 +141,38 @@ void WorkItemExample::Run()
 
 		lastFrequencies[pos++] = rev_structure.frequency;
 
-		if (pos >= 5) {
+		rev_structure.frequency = 0.2 * (double)quad_frequency + (1 - 0.2) * (double)rev_structure.frequency;
+
+		if (pos >= 15) {
 			pos = 0;
 		}
 
 		canPublish = false;
 
 	} else {
-		rev_structure.frequency = arrayAverage(5, lastFrequencies);
+		rev_structure.frequency = arrayAverage(15, lastFrequencies);
 		rev_structure.pulse_counter = pulseCount;
 
 		lastFrequencies[pos++] = 0;
 
-		if (pos >= 5) {
+		if (pos >= 15) {
 			pos = 0;
 		}
 	}
 
-	printf("Freq: %5.1f, Counter: %9d\n", (double)rev_structure.frequency, rev_structure.pulse_counter);
+	//printf("Freq: %5.1f, Counter: %9d\n", (double)rev_structure.frequency, rev_structure.pulse_counter);
 	_rev_counter_pub.publish(rev_structure);
 
+	// int ret = setPWM(3, 1600);
 
-	// // Example
-	// // grab latest accelerometer data
-	// _sensor_accel_sub.update();
-	// const sensor_accel_s &accel = _sensor_accel_sub.get();
+	// if (ret != 0) {
+	// 	printf("Cant set PWM: %d\n", ret);
 
+	// } else {
+	// 	printf("PWM set\n");
+	// }
 
-	// // Example
-	// // publish some data
-	// orb_test_s data{};
-	// data.timestamp = hrt_absolute_time();
-	// data.val = accel.device_id;
-	// _orb_test_pub.publish(data);
-
-
-
-
+	// END DO WORK
 	perf_end(_loop_perf);
 }
 
