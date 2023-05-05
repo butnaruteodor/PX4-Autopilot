@@ -67,6 +67,7 @@ public:
 	bool init();
 
 	int print_status() override;
+	float alfa = 0.6f;
 
 private:
 	void Run() override;

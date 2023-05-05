@@ -74,6 +74,11 @@ public:
 
 	int print_status() override;
 
+	float kp = 0.003;
+	float ki = 1e-9;
+	float kd = 1e-3;
+	float setp = 0;
+	float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest);
 private:
 	void Run() override;
 	bool detectStartLine();

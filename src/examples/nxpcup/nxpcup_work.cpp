@@ -46,19 +46,18 @@ typedef enum {
 	stop
 } State;
 // PID controller parameters
-float kp = 0.05;
-float ki = 0.01;
-float kd = 0.0;
 float dt = 0.01; // 10 ms loop interval in seconds
 
 // PID controller internal states
 float integral = 0.0;
 float previous_error = 0.0;
-float last_timestep = 0;
-float current_timestep = 0;
 
-float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest)
+#if 1
+float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
+				float current_timest)
 {
+	static float last_timestep = 0;
+
 	float error = setpoint - measurement;
 
 	dt = current_timest - last_timestep;
@@ -84,28 +83,23 @@ float calculate_pid(float setpoint, float measurement, float min_output, float m
 
 	integral = i_term_candidate;
 	last_timestep = current_timest;
+
+	printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
+	       (double)measurement,
+	       (double)error);
 	return output_candidate;
 }
-void brake(unsigned long pwm_value)
+#else
+float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
+				float current_timest)
 {
-	const char *dev = "/dev/pwm_output0";
-	int fd = px4_open(dev, 0);
-
-	if (fd < 0) {
-		PX4_ERR("can't open %s", dev);
-		return;
-	}
-
-	int ret = px4_ioctl(fd, PWM_SERVO_SET(3), pwm_value);
-
-	if (ret != OK) {
-		PX4_ERR("failed setting brake");
-	}
-
-	if (fd >= 0) {
-		px4_close(fd);
-	}
+	float error = setpoint - measurement;
+	printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
+	       (double)measurement,
+	       (double)error);
+	return kp * error;
 }
+#endif
 
 NxpCupWork::NxpCupWork() :
 	ModuleParams(nullptr),
@@ -121,7 +115,7 @@ NxpCupWork::~NxpCupWork()
 
 bool NxpCupWork::init()
 {
-	ScheduleOnInterval(10_ms); // 1000 us interval, 1000 Hz rate
+	ScheduleOnInterval(20_ms); // 1000 us interval, 1000 Hz rate
 
 	struct vehicle_control_mode_s _control_mode {};
 
@@ -318,15 +312,7 @@ void NxpCupWork::Run()
 			}
 
 			if (nr_of_distance_readings > 1) {
-				for (int i = 0; i < 100000; i++) {
-					brake(900);
-				}
 
-				//usleep(200);
-				// _att_sp.thrust_body[0] = 0.33f;
-				// _att_sp_pub.publish(_att_sp);
-				// usleep(10000);
-				//_att_sp.thrust_body[0] = 0.75f;
 				CarState = stop;
 				break;
 				//printf("Distance %f\n",static_cast<double>(readDistance()));
@@ -354,34 +340,29 @@ void NxpCupWork::Run()
 	// // publish control mode
 	// _att_sp_pub.publish(_att_sp);
 	// _control_mode_pub.publish(_control_mode);
-	current_timestep = hrt_absolute_time();
-	static float control_output = 0.5f;
+	static float control_output = 0.0f;
 
-	if (current_timestep - last_timestep > 0.0f) {
-		//last_timestep = current_timestep;
+	rev_sub.update();
+	const rev_counter_s &rev_s = rev_sub.get();
 
-		rev_sub.update();
-		const rev_counter_s &rev_s = rev_sub.get();
-		float setpoint = 100.0f;
-		float current_measurement = rev_s.frequency; // Replace with your sensor reading function
-		//float control_output = calculate_pid(setpoint, current_measurement, 0.5f, 0.75f);
-		//float error = setpoint - current_measurement;
-		//control_output = kp * error;
-		control_output = calculate_pid(setpoint, current_measurement, 0.57f, 0.65f, current_timestep);
-		// if (control_output > 0.6f) {
-		// 	control_output = 0.6f;
+	float current_measurement = rev_s.frequency; // Replace with your sensor reading function
+	//float control_output = calculate_pid(setpoint, current_measurement, 0.5f, 0.75f);
+	//float error = setpoint - current_measurement;
+	//control_output = kp * error;
+	control_output = calculate_pid(setp, current_measurement, 0.05f, 0.4f, hrt_absolute_time());
 
-		// } else if (control_output < 0.5f) {
-		// 	control_output = 0.5f;
-		// }
+	/*static float prev_printing_time = 0;
 
-		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setpoint,
-		       (double)current_measurement,
-		       (double)control_output);
-		//_att_sp.thrust_body[0] = control_output;
-	}
+		if (hrt_absolute_time() - prev_printing_time > 50000) {
+			prev_printing_time = hrt_absolute_time();
+			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
+			       (double)current_measurement,
+			       (double)control_output);
+		}*/
 
-	_att_sp.thrust_body[0] = 0.15f;
+	_att_sp.thrust_body[0] = control_output;
+
+	//_att_sp.thrust_body[0] = 0.15f;
 
 	_att_sp.timestamp = hrt_absolute_time();
 
@@ -396,6 +377,15 @@ void NxpCupWork::Run()
 int NxpCupWork::task_spawn(int argc, char *argv[])
 {
 	NxpCupWork *instance = new NxpCupWork();
+
+	//printf("argc: %d\n", argc);
+	// parse second argument to float
+	if (argc == 5) {
+		instance->setp = atof(argv[1]);
+		instance->kp = atof(argv[2]);
+		instance->ki = atof(argv[3]);
+		instance->kd = atof(argv[4]);
+	}
 
 	if (instance) {
 		_object.store(instance);
