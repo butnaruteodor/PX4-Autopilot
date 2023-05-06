@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
-
+ 
 #include "nxpcup_work.hpp"
 
 #include <drivers/drv_hrt.h>
@@ -45,6 +45,7 @@ typedef enum {
 	ObstacleDetection,
 	Stop
 } State;
+
 // PID controller parameters
 float dt = 0.01; // 10 ms loop interval in seconds
 
@@ -191,7 +192,9 @@ void NxpCupWork::Run()
 	// DO WORK
 	static float control_output = 0.0f;
 	roverControl motorControl;
-	static State CarState = Idle;
+  
+	static State CarState = Driving;
+
 	static int nr_of_distance_readings = 0;
 	// used for start line detection debouncing
 	static float last_time = 0;
@@ -219,8 +222,8 @@ void NxpCupWork::Run()
 			// speed is 0
 			setp = 0;
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
-
+			motorControl = raceTrack(pixy, this->KP, this->KD);
+      
 			if (detectStartLine() == true) {
 				last_time = hrt_absolute_time();
 				CarState = Driving;
@@ -232,8 +235,9 @@ void NxpCupWork::Run()
 	case Driving: {
 			// Car is driving
 			setp = 80;
+
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
 
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
@@ -258,7 +262,7 @@ void NxpCupWork::Run()
 			// Drive slowly until the obstacle is detected
 			setp = 50;
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
 
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
@@ -271,6 +275,8 @@ void NxpCupWork::Run()
 				nr_of_distance_readings = 0;
 			}
 
+			printf("Distance %f\n", static_cast<double>(readDistance()));
+
 			if (nr_of_distance_readings > 1) {
 
 				CarState = Stop;
@@ -278,9 +284,12 @@ void NxpCupWork::Run()
 
 			break;
 		}
-
 	case Stop: {
 			setp = 0;
+			// Car is in idle state until the start button is pressed
+			// for (int i = 0; i < 1000; i++) {
+			// 	brake(1501);
+			// }
 			//CarState = WaitForStart;
 			break;
 		}
@@ -306,7 +315,6 @@ void NxpCupWork::Run()
 
 	_att_sp_pub.publish(_att_sp);
 
-
 	perf_end(_loop_perf);
 }
 
@@ -315,13 +323,11 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 {
 	NxpCupWork *instance = new NxpCupWork();
 
-	//printf("argc: %d\n", argc);
-	// parse second argument to float
-	if (argc == 5) {
-		instance->setp = atof(argv[1]);
-		instance->kp = atof(argv[2]);
-		instance->ki = atof(argv[3]);
-		instance->kd = atof(argv[4]);
+	if (argc >= 3) {
+		instance->KP = atof(argv[1]);
+		instance->KD = atof(argv[2]);
+		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
+		       //(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}
 
 	if (instance) {

@@ -12,11 +12,12 @@ const int PREVIOUS_STEERING_VALUES = 5;
 // const float SMOOTHING_FACTOR = 0.1f;
 // const float STEERING_GAIN = 1.5f;
 
-const float SPEED_MAX = 0.58f;
-const float SPEED_MIN = 0.58f;
+float SPEED_MAX = 0.15f;
+float SPEED_MIN = 0.15f;
 //when are suden
 //const float KP_MIN = 1.0f;
-const float KP_MAX = 1.5f;
+float KP = 1.5f;
+float KD = 5.0f;
 
 
 const float BATTERY_VOLTAGE_MIN = 6.2f;
@@ -97,10 +98,14 @@ Vector copy_vectors(const pixy_vector_s &pixy, uint8_t num)
 	return vec;
 }
 
-roverControl raceTrack(const pixy_vector_s &pixy)
+roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float speed_max, float speed_min)
 {
-
-// Subscribe to the battery_status topic
+	KP = kp;
+	KD = kd;
+	SPEED_MAX = speed_max;
+	SPEED_MIN = speed_min;
+	//printf("kp = %f, kd = %f, speed_max = %f, speed_min = %f\n", (double)kp, (double)kd, (double)speed_max,
+	//(double)speed_min);
 	static int battery_status_sub = orb_subscribe(ORB_ID(battery_status));
 
 	// Declare a battery_status_s structure to store the battery data
@@ -132,8 +137,6 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 	} else {
 		scaled_speed = SPEED_MAX;
 	}
-
-
 
 
 	Vector main_vec;
@@ -313,12 +316,11 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 			float error = (lane_center_x / (float)frameWidth) - 0.5f;
 
 			// Implement proportional-derivative control for steering
-			float Kp = KP_MAX; // Proportional gain
-			float Kd = 0.5f; // Derivative gain
+
 
 			// Calculate the steering angle using proportional-derivative control
 			float derivative = error - last_error;
-			control.steer = -(Kp * error + Kd * derivative);
+			control.steer = -(KP * error + KD * derivative);
 
 			// Update last_error
 			last_error = error;
@@ -347,7 +349,7 @@ roverControl raceTrack(const pixy_vector_s &pixy)
 
 	}
 
-	control.speed = scaled_speed; //- (0.02f * (float)fabs(scaled_speed));
+	control.speed = (double)scaled_speed;
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;
 	//control.steer =.5f;

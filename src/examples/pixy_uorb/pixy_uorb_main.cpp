@@ -1,17 +1,10 @@
 #include "pixy_uorb_main.h"
 #include <cmath>
+#include <math.h>
 
 
-void clear_console()
-{
-#ifdef _WIN32
-	std::system("CLS");
-#elif __unix__
-	std::system("clear");
-#else
-	// Unsupported platform
-#endif
-}
+float min_vect_procent_1 = 0.4f;
+float min_vect_procent_2 = 0.7f;
 
 using namespace matrix;
 
@@ -22,6 +15,47 @@ bool threadIsRunning_uorb = false;
 
 float v0[10], v1[10];
 int i0 = 0, i1 = 0;
+
+//calculate the distance between the simple vector and the vertical line that splits the frame in two (39 is the middle of the frame)
+float dist(Vec vect)
+{
+	float x0 = (float)vect.m_x0;
+	float x1 = (float)vect.m_x1;
+	float y0 = (float)vect.m_y0;
+	float y1 = (float)vect.m_y1;
+
+	float vertical_x = 39.0f;
+	float epsilon = 0.000001f; // Small threshold value
+
+	// Check if the line segment is vertical and overlapping the fixed vertical line
+	if (std::abs(x0 - x1) < epsilon && std::abs(x0 - vertical_x) < epsilon) {
+		return 0.0f;
+	}
+
+	// Calculate the intersection point of the line defined by the line segment and the vertical line
+	float slope = (y1 - y0) / (x1 - x0);
+	float intercept = y0 - slope * x0;
+	float intersection_y = slope * vertical_x + intercept;
+
+	// Check if the intersection point lies within the line segment's y bounds
+	if ((intersection_y >= y0 && intersection_y <= y1) || (intersection_y >= y1 && intersection_y <= y0)) {
+		float mid_x = (x0 + x1) / 2.0f;
+		float mid_y = (y0 + y1) / 2.0f;
+		//dist is
+		float dist = sqrt(pow((float)(mid_x - 39.0f), 2) + pow((float)(mid_y - 26), 2));
+		//return 0.0f;
+		return dist;
+	}
+
+	// Calculate the distances from the ends of the line segment to the vertical line
+	float dist_start = std::abs(x0 - vertical_x);
+	float dist_end = std::abs(x1 - vertical_x);
+
+	// Return the minimum distance between the line segment and the vertical line
+	return dist_start < dist_end ? dist_start : dist_end;
+
+}
+
 
 void vec_reset(float vec[])
 {
@@ -40,24 +74,24 @@ float medie(float v[], float i_aux)
 		medie += v[i];
 	}
 
-	return static_cast<double>(medie / i_aux);
+	return (double)(medie / i_aux);
 }
 
 float procent(float v[], float panta,  float i)
 {
-	if (static_cast<double>(medie(v, i)) > static_cast<double>(panta)) {
-		return static_cast<double>(panta / medie(v, i));
+	if ((double)(medie(v, i)) > (double)(panta)) {
+		return (double)(panta / medie(v, i));
 	}
 
-	return static_cast<double>(medie(v, i) / panta);
+	return (double)(medie(v, i) / panta);
 }
 float procent_val(float panta_cur, float panta_prev)
 {
-	if (static_cast<double>(panta_cur) > static_cast<double>(panta_prev)) {
-		return static_cast<double>(panta_prev / panta_cur);
+	if ((double)(panta_cur) > (double)(panta_prev)) {
+		return (double)(panta_prev / panta_cur);
 	}
 
-	return static_cast<double>(panta_cur / panta_prev);
+	return (double)(panta_cur / panta_prev);
 }
 
 float lineLength(Vec line)
@@ -68,7 +102,7 @@ float lineLength(Vec line)
 	float y1 = (float)line.m_y1;
 	float length = sqrt(pow((float)(x1 - x0), 2) + pow((float)(y1 - y0), 2));
 
-	return static_cast<double>(length);
+	return (double)(length);
 }
 
 uint8_t get_nums_vectors(Vec &vec1, Vec &vec2)
@@ -112,7 +146,7 @@ float slope(Vec lines)
 		float y1 = (float)lines.m_y1;
 		float panta = (y1 - y0) / (x1 - x0);
 
-		return static_cast<double>(panta);
+		return (double)(panta);
 	}
 }
 
@@ -130,7 +164,7 @@ bool detectStartLine(Pixy2 &pixy)
 	// extract horizontal vectors
 	for (int i = 0; i < pixy.line.numVectors; i++) {
 		Vec line = pixy.line.vectors[i];
-		float absSlope = std::fabs(static_cast<double>(slope(line)));
+		float absSlope = std::fabs((double)(slope(line)));
 
 		if (absSlope < 0.2f) {
 			horizontalVectors[numHorizontalVectors].m_x0 = line.m_x0;
@@ -165,14 +199,33 @@ int pixy_uorb_thread_main(int argc, char **argv)
 	uORB::Publication<start_line_detected_s> _start_line_detected_pub{ORB_ID(start_line_detected)};
 	uORB::SubscriptionData<distance_sensor_s> distance_sub{ORB_ID(distance_sensor)};
 
+	if (argc >= 2) {
+		min_vect_procent_1 = atof(argv[1]);
+		min_vect_procent_2 = atof(argv[2]);
+	}
+
+	if (argc >= 2) {
+		printf("argv[%d] = %s\n", 1, argv[1]);
+		printf("argv[%d] = %s\n", 2, argv[2]);
+
+	}
+
+	//printf("min_vect_procent_1 = %f, min_vect_procent_2 = %f\n", (double)min_vect_procent_1, (double)min_vect_procent_2);
 	struct pixy_vector_s _pixy_vector;
+
 	struct start_line_detected_s _start_line_detected;
+
 	int dr = 0, st = 0;
+
 	/* Pixy2 Instance */
 	Pixy2 pixy;
+
 	bool wait = 1; // needed fOBSTACLEor waiting for valid data
+
 	usleep(5000);  // give pixy time to init
+
 	static uint8_t index0 = 0;
+
 	static uint8_t index1 = 0;
 
 	// Make sure pixy is ready
@@ -194,6 +247,8 @@ int pixy_uorb_thread_main(int argc, char **argv)
 			dr = 0;
 			int nr_of_consecutive_start_lines = 0;
 			pixy.line.getAllFeatures(LINE_VECTOR, wait); // get line vectors from pixy
+			float length0_min = 9999.0f;
+			float length1_min = 9999.0f;
 
 			if (pixy.line.numVectors) {
 				// extrag cei mai lungi vectori verticali
@@ -201,9 +256,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					Vec line = pixy.line.vectors[i];
 					line.m_y0 = 51 - line.m_y0;
 					line.m_y1 = 51 - line.m_y1;
-					float length = lineLength(line);
-					float absSlope = std::fabs(static_cast<double>(slope(
-									   line)));// now we are comparing the true floating point number of the slope
+					//float length = lineLength(line);
+					float absSlope = std::fabs((double)(slope(
+							line)));// now we are comparing the true floating point number of the slope
 
 					// check if line is upside down
 					if (line.m_y1 < line.m_y0) {
@@ -221,24 +276,28 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					}
 
 					// if vector is vertical and at the left of the frame
-					if (static_cast<double>(length) > static_cast<double>(lineLength(vect0)) && static_cast<double>(absSlope) >= 0.3
-					    && static_cast<double>(line.m_x0) < 39) {
+					if (/*(double)(length) > (double)(lineLength(vect0))*/dist(line) < length0_min && (double)(absSlope) >= 0.3
+							&& (double)(line.m_x0) < 39) {
 						// vector is good
 						vect0 = line;
 						st = 1;
+						length0_min = dist(line);
 					}
 
 					// if vector is vertical and at the right of the frame
-					if (static_cast<double>(length) > static_cast<double>(lineLength(vect1)) && static_cast<double>(absSlope) >= 0.3
-					    && static_cast<double>(line.m_x0) >= 39) {
+					if (/*(double)(length) > (double)(lineLength(vect1))*/dist(line) < length1_min && (double)(absSlope) >= 0.3
+							&& (double)(line.m_x0) >= 39) {
 						// vector is good
 						vect1 = line;
 						dr = 1;
+						length1_min = dist(line);
 					}
 				}
 
 
-				if (index0 != vect0.m_index && st == 1) {
+				if (index0 != vect0.m_index && st == 1
+				    && procent_val(std::fabs((double)(slope(vect0))),
+						   std::fabs((double)(slope(vect0_old)))) > 0.4f) {
 					vect0_old = vect0;
 					index0 = vect0.m_index;
 //					vec_reset(v0);
@@ -246,28 +305,40 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 
 				} else if (st == 1
-					   && procent_val(std::fabs(static_cast<double>(slope(vect0))), std::fabs(static_cast<double>(slope(vect0_old)))) > 0.5f) {
+					   && procent_val(std::fabs((double)(slope(vect0))),
+							  std::fabs((double)(slope(vect0_old)))) > 0.7f) {
 					vect0 = vect0_old;
-					index0 = 0;
+					index0 = 255;
+					//	printf("vect old\n");
+
+				} else {
+					//	printf("vect normal\n");
 				}
 
-				if (index1 != vect1.m_index  && dr == 1) {
+				if (index1 != vect1.m_index  && dr == 1
+				    && procent_val(std::fabs((double)(slope(vect1))),
+						   std::fabs((double)(slope(vect1_old)))) > min_vect_procent_1) {
 					vect1_old = vect1;
 					index1 = vect1.m_index;
-					//	vec_reset(v1);
+					//vec_reset(v1);
 					i1 = 0;
 
 				} else if (dr == 1
-					   && procent_val(std::fabs(static_cast<double>(slope(vect0))), std::fabs(static_cast<double>(slope(vect0_old)))) > 0.5f) {
+					   && procent_val(std::fabs((double)(slope(vect1))),
+							  std::fabs((double)(slope(vect1_old)))) > min_vect_procent_2) {
 					vect1 = vect1_old;
-					index1 = 0;
+					index1 = 255;
+					//	printf("vect old\n");
+
+				} else {
+					//	printf("vect normal\n");
 
 				}
 
 				// printf("vect0: x0= %d, y0=%d, x1=%d, y1=%d , m=%lf , index=%d\n", vect0.m_x0, vect0.m_y0, vect0.m_x1, vect0.m_y1,
-				//        std::fabs(static_cast<double>(slope(vect0))), vect0.m_index);
+				//        std::fabs((double)(slope(vect0))), vect0.m_index);
 				// printf("vect1: x0= %d, y0=%d, x1=%d, y1=%d, m=%lf, index=%d\n", vect1.m_x0, vect1.m_y0, vect1.m_x1, vect1.m_y1,
-				//        std::fabs(static_cast<double>(slope(vect1))), vect1.m_index);
+				//        std::fabs((double)(slope(vect1))), vect1.m_index);
 				// printf("\n");
 
 				// code that counts the number of consecutive start lines using the start line detection function
