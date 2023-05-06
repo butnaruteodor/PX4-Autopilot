@@ -166,7 +166,7 @@ bool detectStartLine(Pixy2 &pixy)
 		Vec line = pixy.line.vectors[i];
 		float absSlope = std::fabs((double)(slope(line)));
 
-		if (absSlope < 0.2f) {
+		if (absSlope < 0.5f) {
 			horizontalVectors[numHorizontalVectors].m_x0 = line.m_x0;
 			horizontalVectors[numHorizontalVectors].m_x1 = line.m_x1;
 			horizontalVectors[numHorizontalVectors].m_y0 = line.m_y0;
@@ -182,7 +182,7 @@ bool detectStartLine(Pixy2 &pixy)
 		height2 = (horizontalVectors[1].m_y1 + horizontalVectors[1].m_y0) / 2;
 
 		// if the height difference is less than 5 pixels, then there is a start line
-		if (std::abs(height1 - height2) < 5) {
+		if (std::abs(height1 - height2) < 15) {
 			return true;
 		}
 	}

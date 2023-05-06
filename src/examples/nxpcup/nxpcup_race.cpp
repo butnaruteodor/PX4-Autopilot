@@ -98,45 +98,43 @@ Vector copy_vectors(const pixy_vector_s &pixy, uint8_t num)
 	return vec;
 }
 
-roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float speed_max, float speed_min)
+roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &setpoint)
 {
 	KP = kp;
 	KD = kd;
-	SPEED_MAX = speed_max;
-	SPEED_MIN = speed_min;
 	//printf("kp = %f, kd = %f, speed_max = %f, speed_min = %f\n", (double)kp, (double)kd, (double)speed_max,
 	//(double)speed_min);
-	static int battery_status_sub = orb_subscribe(ORB_ID(battery_status));
+	// static int battery_status_sub = orb_subscribe(ORB_ID(battery_status));
 
-	// Declare a battery_status_s structure to store the battery data
-	static struct battery_status_s battery_status;
-	bool updated = false;
-	orb_check(battery_status_sub, &updated);
+	// // Declare a battery_status_s structure to store the battery data
+	// static struct battery_status_s battery_status;
+	// bool updated = false;
+	// orb_check(battery_status_sub, &updated);
 
-	static float battery_voltage = 0.0f;
-	static float scaled_speed = 0.0f;
+	// static float battery_voltage = 0.0f;
+	// static float scaled_speed = 0.0f;
 
-	if (battery_voltage > 8.4f) {
-		battery_voltage = 8.4f;
-	}
+	// if (battery_voltage > 8.4f) {
+	// 	battery_voltage = 8.4f;
+	// }
 
-	if (updated) {
-		orb_copy(ORB_ID(battery_status), battery_status_sub, &battery_status);
+	// if (updated) {
+	// 	orb_copy(ORB_ID(battery_status), battery_status_sub, &battery_status);
 
-		// Access the battery status data
-		battery_voltage = battery_status.voltage_v;
-		//printf("Battery voltage: %.2f V\n", double(battery_voltage));
-	}
+	// 	// Access the battery status data
+	// 	battery_voltage = battery_status.voltage_v;
+	// 	//printf("Battery voltage: %.2f V\n", double(battery_voltage));
+	// }
 
-	// Scale the speed according to battery voltage
-	if (battery_voltage >= BATTERY_VOLTAGE_MIN && battery_voltage <= BATTERY_VOLTAGE_MAX) {
-		float voltage_range = BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN;
-		float speed_range = SPEED_MAX - SPEED_MIN;
-		scaled_speed = SPEED_MIN + (((BATTERY_VOLTAGE_MAX - battery_voltage) / voltage_range) * speed_range);
+	// // Scale the speed according to battery voltage
+	// if (battery_voltage >= BATTERY_VOLTAGE_MIN && battery_voltage <= BATTERY_VOLTAGE_MAX) {
+	// 	float voltage_range = BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN;
+	// 	float speed_range = SPEED_MAX - SPEED_MIN;
+	// 	scaled_speed = SPEED_MIN + (((BATTERY_VOLTAGE_MAX - battery_voltage) / voltage_range) * speed_range);
 
-	} else {
-		scaled_speed = SPEED_MAX;
-	}
+	// } else {
+	// 	scaled_speed = SPEED_MAX;
+	// }
 
 
 	Vector main_vec;
@@ -349,7 +347,8 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float spee
 
 	}
 
-	control.speed = (double)scaled_speed;
+	setpoint = 60;
+	//control.speed = (double)scaled_speed;
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;
 	//control.steer =.5f;

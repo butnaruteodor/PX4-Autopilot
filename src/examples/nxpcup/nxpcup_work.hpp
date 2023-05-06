@@ -71,12 +71,11 @@ public:
 	static int print_usage(const char *reason = nullptr);
 
 	bool init();
+	// steering pid
 	float KP = 1.5f;
 	float KD = 5.0f;
-	float SPEED_MAX = 0.15f;
-	float SPEED_MIN = 0.15f;
 	int print_status() override;
-
+	// Motor pid
 	float kp = 0.003;
 	float ki = 1e-3;
 	float kd = 0;
