@@ -43,7 +43,7 @@ typedef enum {
 	WaitForStart,
 	Driving,
 	ObstacleDetection,
-	stop
+	Stop
 } State;
 // PID controller parameters
 float dt = 0.01; // 10 ms loop interval in seconds
@@ -59,8 +59,8 @@ float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_out
 	static float last_timestep = 0;
 
 	float error = setpoint - measurement;
-
-	dt = current_timest - last_timestep;
+	// in seconds
+	dt = static_cast<double>((double)(current_timest - last_timestep) / 1e6);
 
 	float p_term = kp * error;
 
@@ -84,9 +84,9 @@ float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_out
 	integral = i_term_candidate;
 	last_timestep = current_timest;
 
-	printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
-	       (double)measurement,
-	       (double)error);
+	//printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
+	// (double)measurement,
+	// (double)error);
 	return output_candidate;
 }
 #else
@@ -101,7 +101,7 @@ float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_out
 }
 #endif
 
-NxpCupWork::NxpCupWork() :
+NxpCupWork::NxpCupWork():
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::test1)
 {
@@ -126,6 +126,7 @@ bool NxpCupWork::init()
 
 	_control_mode.timestamp = hrt_absolute_time();
 	_control_mode_pub.publish(_control_mode);
+
 	return true;
 }
 
@@ -188,15 +189,23 @@ void NxpCupWork::Run()
 	perf_count(_loop_interval_perf);
 
 	// DO WORK
+	static float control_output = 0.0f;
 	roverControl motorControl;
-	static State CarState = stop;
+	static State CarState = Idle;
 	static int nr_of_distance_readings = 0;
+	// used for start line detection debouncing
 	static float last_time = 0;
 	static float current_time = 0;
 
+	rev_sub.update();
+	const rev_counter_s &rev_s = rev_sub.get();
+
+	pixy_sub.update();
+	const pixy_vector_s &pixy = pixy_sub.get();
 
 	att_sub.update();
-	//struct vehicle_attitude_s att = att_sub.get();
+
+	struct vehicle_attitude_s att = att_sub.get();
 	struct vehicle_attitude_setpoint_s _att_sp {};
 
 	switch (CarState) {
@@ -207,32 +216,14 @@ void NxpCupWork::Run()
 		}
 
 	case WaitForStart: {
-			pixy_sub.update();
-			const pixy_vector_s &pixy = pixy_sub.get();
-
+			// speed is 0
+			setp = 0;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy);
 
-			// setup control structs
-			att_sub.update();
-
-
-			// pre process the controls(convert steering from percent to angle, etc)
-			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
-
-			//_att_sp.thrust_body[0] = 0.545f;
-			//_control_mode.timestamp = hrt_absolute_time();
-			//_att_sp.timestamp = hrt_absolute_time();
-			// publish control mode
-			//_control_mode_pub.publish(_control_mode);
-			//_att_sp_pub.publish(_att_sp);
-
-			//printf("Publish control mode\n");
-
-
 			if (detectStartLine() == true) {
 				last_time = hrt_absolute_time();
-				//CarState = Driving;
+				CarState = Driving;
 			}
 
 			break;
@@ -240,36 +231,22 @@ void NxpCupWork::Run()
 
 	case Driving: {
 			// Car is driving
-
-			/* Get pixy data */
-			pixy_sub.update();
-			const pixy_vector_s &pixy = pixy_sub.get();
-
+			setp = 80;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy);
 
 			// pre process the controls(convert steering from percent to angle, etc)
-			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
-
-			//_control_mode.timestamp = hrt_absolute_time();
-			// publish control mode
-			//_control_mode_pub.publish(_control_mode);
-
-			//	_att_sp.timestamp = hrt_absolute_time();
-
-			// publish controls
-			//_att_sp_pub.publish(_att_sp);
+			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
 			current_time = hrt_absolute_time();
 
 			if (detectStartLine() == true && current_time - last_time > 5000000) {
 				static int nr = 0;
 				nr++;
-				printf("nr: %d\n", nr);
 
 				if (nr == 1) {
 					//printf("OBSTACLE DETECTION\n");
-					CarState = ObstacleDetection;
+					//CarState = ObstacleDetection;
 					nr = 0;
 				}
 			}
@@ -278,30 +255,13 @@ void NxpCupWork::Run()
 		}
 
 	case ObstacleDetection: {
-			// Drive slow
-			// static int contor = 0;
-			/* Get pixy data */
-			pixy_sub.update();
-			const pixy_vector_s &pixy = pixy_sub.get();
-
+			// Drive slowly until the obstacle is detected
+			setp = 50;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy);
 
 			// pre process the controls(convert steering from percent to angle, etc)
-			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
-
-			//_control_mode.timestamp = hrt_absolute_time();
-
-			// publish control mode
-			//_control_mode_pub.publish(_control_mode);
-
-			//_att_sp.timestamp = hrt_absolute_time();
-
-			// Throttle control of the rover
-
-
-			// publish controls
-
+			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
 			// code that counts the number of consecutive start lines using the start line detection function
 			if (readDistance() <= 0.05f) {
@@ -313,56 +273,34 @@ void NxpCupWork::Run()
 
 			if (nr_of_distance_readings > 1) {
 
-				CarState = stop;
-				break;
-				//printf("Distance %f\n",static_cast<double>(readDistance()));
+				CarState = Stop;
 			}
-
-			//_att_sp_pub.publish(_att_sp);
 
 			break;
 		}
 
-	case stop: {
-			// Car is in idle state until the start button is pressed
-			// for (int i = 0; i < 1000; i++) {
-			// 	brake(1501);
-			// }
-
+	case Stop: {
+			setp = 0;
 			//CarState = WaitForStart;
 			break;
 		}
 
 	}
 
-	// _att_sp.thrust_body[0] = 0.8f;
-	// _control_mode.timestamp = hrt_absolute_time();
-	// // publish control mode
-	// _att_sp_pub.publish(_att_sp);
-	// _control_mode_pub.publish(_control_mode);
-	static float control_output = 0.0f;
+	// Here we calculate the control output based on the setpoint and the current measurement
+	float current_measurement = rev_s.frequency;
+	control_output = calculate_pid(setp, current_measurement, 0.05f, 0.25f, hrt_absolute_time());
 
-	rev_sub.update();
-	const rev_counter_s &rev_s = rev_sub.get();
+	static float prev_printing_time = 0;
 
-	float current_measurement = rev_s.frequency; // Replace with your sensor reading function
-	//float control_output = calculate_pid(setpoint, current_measurement, 0.5f, 0.75f);
-	//float error = setpoint - current_measurement;
-	//control_output = kp * error;
-	control_output = calculate_pid(setp, current_measurement, 0.05f, 0.4f, hrt_absolute_time());
-
-	/*static float prev_printing_time = 0;
-
-		if (hrt_absolute_time() - prev_printing_time > 50000) {
-			prev_printing_time = hrt_absolute_time();
-			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
-			       (double)current_measurement,
-			       (double)control_output);
-		}*/
+	if (hrt_absolute_time() - prev_printing_time > 50000) {
+		prev_printing_time = hrt_absolute_time();
+		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
+		       (double)current_measurement,
+		       (double)control_output);
+	}
 
 	_att_sp.thrust_body[0] = control_output;
-
-	//_att_sp.thrust_body[0] = 0.15f;
 
 	_att_sp.timestamp = hrt_absolute_time();
 
@@ -371,7 +309,6 @@ void NxpCupWork::Run()
 
 	perf_end(_loop_perf);
 }
-
 
 
 int NxpCupWork::task_spawn(int argc, char *argv[])

@@ -41,12 +41,13 @@
 #define GPIO_PIN_MASK              (31 << GPIO_PIN_SHIFT)
 
 #define GPIO_IN_QUAD (GPIO_INPUT | ((4<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((12 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
-
+#define TIMEOUT_DURATION 500000 // 500 ms
 // 7 pulses equal 1 revolution, and 1 revolution equals to a travel of 23 cm
 volatile int pulseCount = 0;
 volatile float quad_frequency = 0;
 volatile float prevPulseMicros = 0;
 volatile bool canPublish = false;
+volatile float lastPulseDetectedTime = 0;
 
 // float lastFrequencies[10];
 // int pos = 0;
@@ -85,6 +86,7 @@ static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 	if ((double)pulseInterval > 0.0) {
 		quad_frequency = (1000000.0) / (1.0 * (double)pulseInterval);
 		canPublish = true;
+		lastPulseDetectedTime = currentMicros; // Update lastPulseDetectedTime
 	}
 
 	return 0;
@@ -158,11 +160,18 @@ void WorkItemExample::Run()
 	// 		pos = 0;
 	// 	}
 	// }
-	filtered_frequency += alfa * (quad_frequency - filtered_frequency);
-	rev_structure.frequency = filtered_frequency;
 	//printf("Freq: %5.1f, Counter: %9d\n", (double)filtered_frequency, rev_structure.pulse_counter);
-	_rev_counter_pub.publish(rev_structure);
 
+	// Check for timeout before publishing
+	if (hrt_absolute_time() - lastPulseDetectedTime > TIMEOUT_DURATION) {
+		rev_structure.frequency = 0;
+
+	} else {
+		filtered_frequency += alfa * (quad_frequency - filtered_frequency);
+		rev_structure.frequency = filtered_frequency;
+	}
+
+	_rev_counter_pub.publish(rev_structure);
 	// int ret = setPWM(3, 1600);
 
 	// if (ret != 0) {
