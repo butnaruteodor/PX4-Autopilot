@@ -41,32 +41,33 @@
 #define GPIO_PIN_MASK              (31 << GPIO_PIN_SHIFT)
 
 #define GPIO_IN_QUAD (GPIO_INPUT | ((4<< GPIO_PORT_SHIFT) & GPIO_PORT_MASK) | ((12 << GPIO_PIN_SHIFT) & GPIO_PIN_MASK))
-
+#define TIMEOUT_DURATION 500000 // 500 ms
 // 7 pulses equal 1 revolution, and 1 revolution equals to a travel of 23 cm
 volatile int pulseCount = 0;
 volatile float quad_frequency = 0;
 volatile float prevPulseMicros = 0;
 volatile bool canPublish = false;
+volatile float lastPulseDetectedTime = 0;
 
-float lastFrequencies[15];
-int pos = 0;
-
+// float lastFrequencies[10];
+// int pos = 0;
+float filtered_frequency = 0;
 // function that calculates the average of a float array
 
-static float arrayAverage(int nr, float array[100])
-{
-	float sum = 0;
+// static float arrayAverage(int nr, float array[100])
+// {
+// 	float sum = 0;
 
-	for (int i = 0; i < nr; i++) {
-		sum += array[i];
-	}
+// 	for (int i = 0; i < nr; i++) {
+// 		sum += array[i];
+// 	}
 
-	return sum / (float)nr;
-}
+// 	return sum / (float)nr;
+// }
 static int handleQuadratureEncIRQ(int irq, void *context, void *arg);
 static void enableIRQ()
 {
-	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, true, true, &handleQuadratureEncIRQ, NULL);
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, false, true, &handleQuadratureEncIRQ, NULL);
 }
 static void disableIRQ()
 {
@@ -83,8 +84,9 @@ static int handleQuadratureEncIRQ(int irq, void *context, void *arg)
 	prevPulseMicros = currentMicros;
 
 	if ((double)pulseInterval > 0.0) {
-		quad_frequency = (1000000.0) / (2.0 * (double)pulseInterval);
+		quad_frequency = (1000000.0) / (1.0 * (double)pulseInterval);
 		canPublish = true;
+		lastPulseDetectedTime = currentMicros; // Update lastPulseDetectedTime
 	}
 
 	return 0;
@@ -106,10 +108,10 @@ WorkItemExample::~WorkItemExample()
 
 bool WorkItemExample::init()
 {
-	ScheduleOnInterval(10000_us); // 10000 us interval, 10000 Hz rate
+	ScheduleOnInterval(20_ms); // 10000 us interval, 10000 Hz rate
 	px4_arch_configgpio(GPIO_IN_QUAD);
 	// // rising edge and falling edge
-	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, true, true, &handleQuadratureEncIRQ, NULL);
+	px4_arch_gpiosetevent(GPIO_IN_QUAD, true, false, true, &handleQuadratureEncIRQ, NULL);
 	// PX4_INFO("WorkItemExample::init()\n");
 	isReady = true;
 	return true;
@@ -135,34 +137,41 @@ void WorkItemExample::Run()
 
 	rev_structure.timestamp = hrt_absolute_time();
 
-	if (canPublish) {
-		rev_structure.frequency = quad_frequency;
-		rev_structure.pulse_counter = pulseCount;
+	// if (canPublish) {
+	// 	rev_structure.pulse_counter = pulseCount;
 
-		lastFrequencies[pos++] = rev_structure.frequency;
+	// 	lastFrequencies[pos++] = rev_structure.frequency;
 
-		rev_structure.frequency = 0.2 * (double)quad_frequency + (1 - 0.2) * (double)rev_structure.frequency;
+	// 	rev_structure.frequency = arrayAverage(10, lastFrequencies);
 
-		if (pos >= 15) {
-			pos = 0;
-		}
+	// 	if (pos >= 10) {
+	// 		pos = 0;
+	// 	}
 
-		canPublish = false;
+	// 	canPublish = false;
+
+	// } else {
+	// 	rev_structure.frequency = arrayAverage(10, lastFrequencies);
+	// 	rev_structure.pulse_counter = pulseCount;
+
+	// 	lastFrequencies[pos++] = 0;
+
+	// 	if (pos >= 10) {
+	// 		pos = 0;
+	// 	}
+	// }
+	//printf("Freq: %5.1f, Counter: %9d\n", (double)filtered_frequency, rev_structure.pulse_counter);
+
+	// Check for timeout before publishing
+	if (hrt_absolute_time() - lastPulseDetectedTime > TIMEOUT_DURATION) {
+		rev_structure.frequency = 0;
 
 	} else {
-		rev_structure.frequency = arrayAverage(15, lastFrequencies);
-		rev_structure.pulse_counter = pulseCount;
-
-		lastFrequencies[pos++] = 0;
-
-		if (pos >= 15) {
-			pos = 0;
-		}
+		filtered_frequency += alfa * (quad_frequency - filtered_frequency);
+		rev_structure.frequency = filtered_frequency;
 	}
 
-	//printf("Freq: %5.1f, Counter: %9d\n", (double)rev_structure.frequency, rev_structure.pulse_counter);
 	_rev_counter_pub.publish(rev_structure);
-
 	// int ret = setPWM(3, 1600);
 
 	// if (ret != 0) {
@@ -179,6 +188,10 @@ void WorkItemExample::Run()
 int WorkItemExample::task_spawn(int argc, char *argv[])
 {
 	WorkItemExample *instance = new WorkItemExample();
+
+	if (argc == 2) {
+		instance->alfa = atof(argv[1]);
+	}
 
 	if (instance) {
 		_object.store(instance);
