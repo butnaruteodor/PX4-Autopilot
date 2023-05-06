@@ -71,14 +71,16 @@ public:
 	static int print_usage(const char *reason = nullptr);
 
 	bool init();
-
+	float KP = 1.5f;
+	float KD = 5.0f;
+	float SPEED_MAX = 0.15f;
+	float SPEED_MIN = 0.15f;
 	int print_status() override;
 
 private:
 	void Run() override;
 	bool detectStartLine();
 	float readDistance();
-
 	/* Publications */
 	uORB::Publication<vehicle_control_mode_s> _control_mode_pub{ORB_ID(vehicle_control_mode)};
 	uORB::Publication<vehicle_attitude_setpoint_s> _att_sp_pub{ORB_ID(vehicle_attitude_setpoint)};

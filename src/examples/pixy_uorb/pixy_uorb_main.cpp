@@ -3,18 +3,8 @@
 #include <math.h>
 
 
-
-
-void clear_console()
-{
-#ifdef _WIN32
-	std::system("CLS");
-#elif __unix__
-	std::system("clear");
-#else
-	// Unsupported platform
-#endif
-}
+float min_vect_procent_1 = 0.4f;
+float min_vect_procent_2 = 0.7f;
 
 using namespace matrix;
 
@@ -209,14 +199,33 @@ int pixy_uorb_thread_main(int argc, char **argv)
 	uORB::Publication<start_line_detected_s> _start_line_detected_pub{ORB_ID(start_line_detected)};
 	uORB::SubscriptionData<distance_sensor_s> distance_sub{ORB_ID(distance_sensor)};
 
+	if (argc >= 2) {
+		min_vect_procent_1 = atof(argv[1]);
+		min_vect_procent_2 = atof(argv[2]);
+	}
+
+	if (argc >= 2) {
+		printf("argv[%d] = %s\n", 1, argv[1]);
+		printf("argv[%d] = %s\n", 2, argv[2]);
+
+	}
+
+	//printf("min_vect_procent_1 = %f, min_vect_procent_2 = %f\n", (double)min_vect_procent_1, (double)min_vect_procent_2);
 	struct pixy_vector_s _pixy_vector;
+
 	struct start_line_detected_s _start_line_detected;
+
 	int dr = 0, st = 0;
+
 	/* Pixy2 Instance */
 	Pixy2 pixy;
+
 	bool wait = 1; // needed fOBSTACLEor waiting for valid data
+
 	usleep(5000);  // give pixy time to init
+
 	static uint8_t index0 = 0;
+
 	static uint8_t index1 = 0;
 
 	// Make sure pixy is ready
@@ -300,15 +309,15 @@ int pixy_uorb_thread_main(int argc, char **argv)
 							  std::fabs((double)(slope(vect0_old)))) > 0.7f) {
 					vect0 = vect0_old;
 					index0 = 255;
-					printf("vect old\n");
+					//	printf("vect old\n");
 
 				} else {
-					printf("vect normal\n");
+					//	printf("vect normal\n");
 				}
 
 				if (index1 != vect1.m_index  && dr == 1
 				    && procent_val(std::fabs((double)(slope(vect1))),
-						   std::fabs((double)(slope(vect1_old)))) > 0.4f) {
+						   std::fabs((double)(slope(vect1_old)))) > min_vect_procent_1) {
 					vect1_old = vect1;
 					index1 = vect1.m_index;
 					//vec_reset(v1);
@@ -316,13 +325,13 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				} else if (dr == 1
 					   && procent_val(std::fabs((double)(slope(vect1))),
-							  std::fabs((double)(slope(vect1_old)))) > 0.7f) {
+							  std::fabs((double)(slope(vect1_old)))) > min_vect_procent_2) {
 					vect1 = vect1_old;
 					index1 = 255;
-					printf("vect old\n");
+					//	printf("vect old\n");
 
 				} else {
-					printf("vect normal\n");
+					//	printf("vect normal\n");
 
 				}
 

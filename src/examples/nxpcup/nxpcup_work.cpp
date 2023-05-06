@@ -146,7 +146,7 @@ void NxpCupWork::Run()
 
 	// DO WORK
 	roverControl motorControl;
-	static State CarState = Idle;
+	static State CarState = Driving;
 	static int nr_of_distance_readings = 0;
 	static float last_time = 0;
 	static float current_time = 0;
@@ -170,8 +170,8 @@ void NxpCupWork::Run()
 			const pixy_vector_s &pixy = pixy_sub.get();
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
-
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
+			printf("wait for start\n");
 			// setup control structs
 			att_sub.update();
 
@@ -198,13 +198,13 @@ void NxpCupWork::Run()
 
 	case Driving: {
 			// Car is driving
-
+			printf("Driving\n");
 			/* Get pixy data */
 			pixy_sub.update();
 			const pixy_vector_s &pixy = pixy_sub.get();
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
 
 			// setup control structs
 			att_sub.update();
@@ -233,7 +233,7 @@ void NxpCupWork::Run()
 
 				if (nr == 1) {
 					//printf("OBSTACLE DETECTION\n");
-					CarState = ObstacleDetection;
+					//	CarState = ObstacleDetection;
 					nr = 0;
 				}
 			}
@@ -249,7 +249,7 @@ void NxpCupWork::Run()
 			const pixy_vector_s &pixy = pixy_sub.get();
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
 
 			// setup control structs
 			att_sub.update();
@@ -280,15 +280,19 @@ void NxpCupWork::Run()
 				nr_of_distance_readings = 0;
 			}
 
+			printf("Distance %f\n", static_cast<double>(readDistance()));
+
 			if (nr_of_distance_readings > 1) {
-				// for (int i = 0; i < 100000; i++) {
+				// for (int i = 0; i < 10000; i++) {
 				// 	brake(900);
 				// }
 
 				//usleep(200);
+				printf("frana\n");
 				_att_sp.thrust_body[0] = -1.0f;
 				_att_sp_pub.publish(_att_sp);
-				//usleep(10000);
+				//		usleep(500);
+
 				//_att_sp.thrust_body[0] = 0.75f;
 				CarState = ObstacleDetection;
 				break;
@@ -296,7 +300,7 @@ void NxpCupWork::Run()
 			}
 
 			_att_sp_pub.publish(_att_sp);
-			CarState = WaitForStart;
+			CarState = Driving;
 			break;
 		}
 
@@ -320,6 +324,16 @@ void NxpCupWork::Run()
 int NxpCupWork::task_spawn(int argc, char *argv[])
 {
 	NxpCupWork *instance = new NxpCupWork();
+
+	if (argc >= 5) {
+		instance->KP = atof(argv[1]);
+		instance->KD = atof(argv[2]);
+		instance->SPEED_MAX = atof(argv[3]);
+		instance->SPEED_MIN = atof(argv[4]);
+		printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
+		       (double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
+	}
+
 
 	if (instance) {
 		_object.store(instance);
