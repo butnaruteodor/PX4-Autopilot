@@ -269,7 +269,7 @@ void NxpCupWork::Run()
 
 				if (nr == 1) {
 					//printf("OBSTACLE DETECTION\n");
-					CarState = ObstacleDetection;
+					//CarState = ObstacleDetection;
 					nr = 0;
 				}
 			}
@@ -340,17 +340,30 @@ void NxpCupWork::Run()
 
 	if (hrt_absolute_time() - prev_printing_time > 50000) {
 		prev_printing_time = hrt_absolute_time();
-		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setpoint,
-		       (double)current_measurement,
-		       (double)control_output);
+		//printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setpoint,
+		// (double)current_measurement,
+		// (double)control_output);
+
 	}
 
 	_att_sp.thrust_body[0] = control_output;
 //	}
 
+	struct vehicle_control_mode_s _control_mode {};
+
+	_control_mode.flag_control_manual_enabled = false;
+	_control_mode.flag_control_attitude_enabled = true;
+	_control_mode.flag_control_velocity_enabled = false;
+	_control_mode.flag_control_position_enabled = false;
+
+	_control_mode.timestamp = hrt_absolute_time();
+	_control_mode_pub.publish(_control_mode);
+
 	_att_sp.timestamp = hrt_absolute_time();
 
 	_att_sp_pub.publish(_att_sp);
+
+
 
 	perf_end(_loop_perf);
 }

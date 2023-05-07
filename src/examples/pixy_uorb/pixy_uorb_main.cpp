@@ -125,7 +125,10 @@ int getIntersections(Pixy2 &pixy, Intersection_t intersections[10])
 
 	return numIntersections;
 }
-
+void printVect(Vec line, const char name[])
+{
+	printf("%s: (%d, %d) (%d, %d) Index: %d\n", name, line.m_x0, line.m_y0, line.m_x1, line.m_y1, line.m_index);
+}
 void vec_reset(float vec[])
 {
 	for (int i = 0; i < 10; i++) {
@@ -173,6 +176,51 @@ float lineLength(Vec line)
 	return (double)(length);
 }
 
+void assignVect(Vec &vec1, Vec vec2)
+{
+	vec1.m_x0 = vec2.m_x0;
+	vec1.m_x1 = vec2.m_x1;
+	vec1.m_y0 = vec2.m_y0;
+	vec1.m_y1 = vec2.m_y1;
+	vec1.m_index = vec2.m_index;
+}
+float slope(Vec lines)
+{
+	if (lines.m_x0 - lines.m_x1 == 0) {
+		return 9999.0f;
+
+	} else {
+		float x0 = (float)lines.m_x0;
+		float x1 = (float)lines.m_x1;
+		float y0 = (float)lines.m_y0;
+		float y1 = (float)lines.m_y1;
+		float panta = (y1 - y0) / (x1 - x0);
+
+		return (double)(panta);
+	}
+}
+float slope(int x0, int y0, int x1, int y1)
+{
+	if (x0 - x1 == 0) {
+		return 9999.0f;
+
+	} else {
+		float panta = (y1 - y0) / (x1 - x0);
+		return (double)(panta);
+	}
+}
+// get angle in degrees between two lines
+float angleLines(int line1_x0, int line1_x1, int line1_y0,
+		 int line1_y1, int line2_x0, int line2_x1,
+		 int line2_y0, int line2_y1)
+{
+	float slope1 = slope(line1_x0, line1_y0, line1_x1, line1_y1);
+	float slope2 = slope(line2_x0, line2_y0, line2_x1, line2_y1);
+
+	float angle = std::atan((double)((slope1 - slope2) / (1 + slope1 * slope2))) * 180 / M_PI;
+
+	return angle;
+}
 uint8_t get_nums_vectors(Vec &vec1, Vec &vec2)
 {
 
@@ -200,22 +248,6 @@ void init_vectors(Vec &vect1, Vec &vect2)
 	vect2.m_x1 = 0;
 	vect2.m_y0 = 0;
 	vect2.m_y1 = 0;
-}
-
-float slope(Vec lines)
-{
-	if (lines.m_x0 - lines.m_x1 == 0) {
-		return 9999.0f;
-
-	} else {
-		float x0 = (float)lines.m_x0;
-		float x1 = (float)lines.m_x1;
-		float y0 = (float)lines.m_y0;
-		float y1 = (float)lines.m_y1;
-		float panta = (y1 - y0) / (x1 - x0);
-
-		return (double)(panta);
-	}
 }
 
 bool detectStartLine(Pixy2 &pixy)
@@ -281,7 +313,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 	//printf("min_vect_procent_1 = %f, min_vect_procent_2 = %f\n", (double)min_vect_procent_1, (double)min_vect_procent_2);
 	struct pixy_vector_s _pixy_vector;
 
-	struct start_line_detected_s _start_line_detected;
+	//struct start_line_detected_s _start_line_detected;
 
 	int dr = 0, st = 0;
 
@@ -296,6 +328,10 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 	static uint8_t index1 = 0;
 
+	//bool used to detect when the mostVerticalVect line transitions from a valid line to 0,0,0,0 line
+	//bool mostVerticalVectTransitioned = false;
+	bool isValid = false;
+
 	// Make sure pixy is ready
 	if (pixy.init() == 0) {
 
@@ -307,6 +343,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 		Vec vect1;
 		Vec vect0_old;
 		Vec vect1_old;
+		//Vec intersection_vect = {0};
 
 		Intersection_t intersections[10] = {0};
 		int numIntersections = 0;
@@ -316,12 +353,50 @@ int pixy_uorb_thread_main(int argc, char **argv)
 			init_vectors(vect0, vect1);
 			st = 0;
 			dr = 0;
-			int nr_of_consecutive_start_lines = 0;
+			//int nr_of_consecutive_start_lines = 0;
 			pixy.line.getAllFeatures(LINE_VECTOR, wait); // get line vectors from pixy
 
 			numIntersections = getIntersections(pixy, intersections);
-			printIntersections(intersections, numIntersections);
-			numIntersections++;
+			Vec mostVerticalVect = {0};
+
+			//printIntersections(intersections, numIntersections);
+			//numIntersections++;
+			if (numIntersections > 0) {
+				float slope0 = slope(intersections[0].vec0_x0, intersections[0].vec0_y0, intersections[0].vec0_x1,
+						     intersections[0].vec0_y1);
+				float slope1 = slope(intersections[0].vec1_x0, intersections[0].vec1_y0, intersections[0].vec1_x1,
+						     intersections[0].vec1_y1);
+				Vec vecInters0 = {(u_int8_t)intersections[0].vec0_x0, (u_int8_t)intersections[0].vec0_y0,
+						  (u_int8_t)intersections[0].vec0_x1, (u_int8_t)intersections[0].vec0_y1,
+						  (u_int8_t)intersections[0].vec0_index, 0
+						 };
+				Vec vecInters1 = {
+					(u_int8_t)intersections[0].vec1_x0, (u_int8_t)intersections[0].vec1_y0,
+					(u_int8_t)intersections[0].vec1_x1, (u_int8_t)intersections[0].vec1_y1,
+					(u_int8_t)intersections[0].vec1_index, 0
+				};
+
+				if (slope0 > slope1) {
+					assignVect(mostVerticalVect, vecInters0);
+
+				} else {
+					assignVect(mostVerticalVect, vecInters1);
+				}
+
+				isValid = true;
+				printf("Angle %f\n", (double)angleLines(intersections[0].vec0_x0, intersections[0].vec0_x1, intersections[0].vec0_y0,
+									intersections[0].vec0_y1, intersections[0].vec1_x0, intersections[0].vec1_x1,
+									intersections[0].vec1_y0, intersections[0].vec1_y1));
+
+			} else {
+				if (isValid == true) {
+					isValid = false;
+					//mostVerticalVectTransitioned = true;
+					//printf("O ia pe pula\n");
+				}
+			}
+
+			//printVect(mostVerticalVect, "Most vertical vector");
 			float length0_min = 9999.0f;
 			float length1_min = 9999.0f;
 
@@ -369,6 +444,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					}
 				}
 
+				if (numIntersections) {
+
+				}
 
 				if (index0 != vect0.m_index && st == 1
 				    && procent_val(std::fabs((double)(slope(vect0))),
@@ -417,25 +495,25 @@ int pixy_uorb_thread_main(int argc, char **argv)
 				// printf("\n");
 
 				// code that counts the number of consecutive start lines using the start line detection function
-				if (detectStartLine(pixy)) {
-					nr_of_consecutive_start_lines++;
+				// if (detectStartLine(pixy)) {
+				// 	nr_of_consecutive_start_lines++;
 
-				} else {
-					nr_of_consecutive_start_lines = 0;
-				}
+				// } else {
+				// 	nr_of_consecutive_start_lines = 0;
+				// }
 
-				// if there are more than 5 consecutive start lines, then publish start line detected
-				if (nr_of_consecutive_start_lines > 0) {
-					// publish start line detected
-					_start_line_detected.start_line_detected = true;
-					_start_line_detected.timestamp = hrt_absolute_time();
-					_start_line_detected_pub.publish(_start_line_detected);
+				// // if there are more than 5 consecutive start lines, then publish start line detected
+				// if (nr_of_consecutive_start_lines > 0) {
+				// 	// publish start line detected
+				// 	_start_line_detected.start_line_detected = true;
+				// 	_start_line_detected.timestamp = hrt_absolute_time();
+				// 	_start_line_detected_pub.publish(_start_line_detected);
 
-				} else {
-					_start_line_detected.start_line_detected = false;
-					_start_line_detected.timestamp = hrt_absolute_time();
-					_start_line_detected_pub.publish(_start_line_detected);
-				}
+				// } else {
+				// 	_start_line_detected.start_line_detected = false;
+				// 	_start_line_detected.timestamp = hrt_absolute_time();
+				// 	_start_line_detected_pub.publish(_start_line_detected);
+				// }
 
 				if (pixy.line.numVectors == 1) {
 					// only one vector found
