@@ -102,6 +102,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 {
 	KP = kp;
 	KD = kd;
+	//setp = setpoint;
 	//printf("kp = %f, kd = %f, speed_max = %f, speed_min = %f\n", (double)kp, (double)kd, (double)speed_max,
 	//(double)speed_min);
 	// static int battery_status_sub = orb_subscribe(ORB_ID(battery_status));
@@ -347,7 +348,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 
 	}
 
-	setpoint = 60;
+	//setpoint = 80.0 - std::fabs(10.0 * (double)control.steer);
 	//control.speed = (double)scaled_speed;
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;

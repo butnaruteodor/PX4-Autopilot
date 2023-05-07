@@ -54,14 +54,14 @@ float integral = 0.0;
 float previous_error = 0.0;
 
 #if 1
-float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
-				float current_timest)
+float NxpCupWork::calculate_pid(float setpoin, float measurement, float min_output, float max_output,
+				float current_timestt)
 {
 	static float last_timestep = 0;
 
-	float error = setpoint - measurement;
+	float error = setpoin - measurement;
 	// in seconds
-	dt = static_cast<double>((double)(current_timest - last_timestep) / 1e6);
+	dt = static_cast<double>((double)(current_timestt - last_timestep) / 1e6);
 
 	float p_term = kp * error;
 
@@ -83,7 +83,7 @@ float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_out
 	}
 
 	integral = i_term_candidate;
-	last_timestep = current_timest;
+	last_timestep = current_timestt;
 
 	//printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
 	// (double)measurement,
@@ -212,8 +212,8 @@ void NxpCupWork::Run()
 	static float control_output = 0.0f;
 	roverControl motorControl;
 
-	static State CarState = Idle;
-	static bool isBraking = false;
+	static State CarState = Driving;
+	//static bool isBraking = false;
 	static int nr_of_distance_readings = 0;
 	// used for start line detection debouncing
 	static float last_time = 0;
@@ -240,8 +240,8 @@ void NxpCupWork::Run()
 	case WaitForStart: {
 			// speed is 0
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
-			setp = 0;
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->setpoint);
+			setpoint = 0;
 
 			if (detectStartLine() == true) {
 				last_time = hrt_absolute_time();
@@ -256,7 +256,7 @@ void NxpCupWork::Run()
 			//setp = 80;
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
+			motorControl = raceTrack(pixy, this->KP, this->KD, setpoint);
 
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
@@ -281,8 +281,8 @@ void NxpCupWork::Run()
 			// Drive slowly until the obstacle is detected
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
-			setp = 50;
+			motorControl = raceTrack(pixy, this->KP, this->KD, setpoint);
+			//setp = 60;
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
@@ -305,16 +305,17 @@ void NxpCupWork::Run()
 		}
 
 	case Stop: {
-			setp = 0;
+			//setp = 0;
 
 			//static float brake_time = hrt_absolute_time();
 
 			// Car is in idle state until the start button is pressed
-			for (int i = 0; i < 1000000; i++) {
-				brake(900);
-			}
+			// for (int i = 0; i < 1000000; i++) {
+			// 	brake(900);
+			// }
 
-			brake(1502);
+			// brake(1502);
+			usleep(1000);
 			// if (hrt_absolute_time() - brake_time < 5000000) {
 			// 	_att_sp.thrust_body[0] = -1;
 
@@ -332,20 +333,20 @@ void NxpCupWork::Run()
 	// Here we calculate the control output based on the setpoint and the current measurement
 	float current_measurement = rev_s.frequency;
 
-	if (isBraking == false) {
-		control_output = calculate_pid(setp, current_measurement, 0.05f, 0.25f, hrt_absolute_time());
+	//if (isBraking == false) {
+	control_output = calculate_pid(setpoint, current_measurement, -0.5f, 0.25f, hrt_absolute_time());
 
-		static float prev_printing_time = 0;
+	static float prev_printing_time = 0;
 
-		if (hrt_absolute_time() - prev_printing_time > 50000) {
-			prev_printing_time = hrt_absolute_time();
-			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
-			       (double)current_measurement,
-			       (double)control_output);
-		}
-
-		_att_sp.thrust_body[0] = control_output;
+	if (hrt_absolute_time() - prev_printing_time > 50000) {
+		prev_printing_time = hrt_absolute_time();
+		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setpoint,
+		       (double)current_measurement,
+		       (double)control_output);
 	}
+
+	_att_sp.thrust_body[0] = control_output;
+//	}
 
 	_att_sp.timestamp = hrt_absolute_time();
 
@@ -362,6 +363,7 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 	if (argc >= 3) {
 		instance->KP = atof(argv[1]);
 		instance->KD = atof(argv[2]);
+		instance->setpoint = atof(argv[3]);
 		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
 		//(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}

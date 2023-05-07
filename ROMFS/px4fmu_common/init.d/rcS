@@ -563,8 +563,8 @@ else
 #
 
 pixy_uorb start
-nxpcup_work start
-commander arm -f
+#nxpcup_work start
+#commander arm -f
 work_item_example start
 
 fi

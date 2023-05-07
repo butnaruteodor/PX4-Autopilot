@@ -74,12 +74,13 @@ public:
 	// steering pid
 	float KP = 1.5f;
 	float KD = 5.0f;
+	float setpoint = 70;
 	int print_status() override;
 	// Motor pid
 	float kp = 0.003;
 	float ki = 1e-3;
 	float kd = 0;
-	float setp = 0;
+
 	float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest);
 private:
 	void Run() override;

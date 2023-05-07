@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sched.h>
+//#include <Vector.hpp>
 
 #include <uORB/Subscription.hpp>
 #include <uORB/Publication.hpp>
@@ -63,5 +64,18 @@
 #include "Pixy2I2C_PX4.h"
 #include "Pixy2Line.h"
 #include "Pixy2Video.h"
+
+struct Intersection_t {
+	int vec0_x0;
+	int vec0_y0;
+	int vec0_x1;
+	int vec0_y1;
+	int vec0_index;
+	int vec1_x0;
+	int vec1_y0;
+	int vec1_x1;
+	int vec1_y1;
+	int vec1_index;
+} typedef Intersection_t;
 
 #endif /*PIXY_UORB_START_*/

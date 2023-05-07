@@ -3,8 +3,8 @@
 #include <math.h>
 
 
-float min_vect_procent_1 = 0.4f;
-float min_vect_procent_2 = 0.7f;
+float min_vect_procent_1 = 0.3f;
+float min_vect_procent_2 = 0.85f;
 
 using namespace matrix;
 
@@ -56,6 +56,75 @@ float dist(Vec vect)
 
 }
 
+bool pointsAreClose(const int x0, const int y0, const int x1, const int y1, double threshold)
+{
+	double dist = std::sqrt(std::pow((double)(x1 - x0), 2) + std::pow((double)(y1 - y0), 2));
+	return dist <= threshold;
+}
+
+bool linesIntersectAtEndpoint(Vec line0, Vec line1, double threshold)
+{
+	return pointsAreClose(line0.m_x0, line0.m_y0, line1.m_x0, line1.m_y0, threshold)
+	       || pointsAreClose(line0.m_x0, line0.m_y0, line1.m_x1, line1.m_y1, threshold) ||
+	       pointsAreClose(line0.m_x1, line0.m_y1, line1.m_x0, line1.m_y0, threshold)
+	       || pointsAreClose(line0.m_x1, line0.m_y1, line1.m_x1, line1.m_y1, threshold);
+}
+
+void printIntersections(Intersection_t intersections[10], int numIntersections)
+{
+	for (int i = 0; i < numIntersections; i++) {
+		Vec vec1;
+		Vec vec0;
+		vec0.m_x0 = intersections[i].vec0_x0;
+		vec0.m_x1 = intersections[i].vec0_x1;
+		vec0.m_y0 = intersections[i].vec0_y0;
+		vec0.m_y1 = intersections[i].vec0_y1;
+		vec0.m_index = intersections[i].vec0_index;
+
+		vec1.m_x0 = intersections[i].vec1_x0;
+		vec1.m_x1 = intersections[i].vec1_x1;
+		vec1.m_y0 = intersections[i].vec1_y0;
+		vec1.m_y1 = intersections[i].vec1_y1;
+		vec1.m_index = intersections[i].vec1_index;
+
+		printf("Intersection %d: Line1: (%d, %d) (%d, %d) Index: %d ; Line2: (%d, %d) (%d, %d) Index: %d\n", i,
+		       vec0.m_x0, vec0.m_y0, vec0.m_x1, vec0.m_y1, vec0.m_index,
+		       vec1.m_x0, vec1.m_y0, vec1.m_x1, vec1.m_y1, vec1.m_index);
+	}
+}
+
+int getIntersections(Pixy2 &pixy, Intersection_t intersections[10])
+{
+	int numIntersections = 0;
+	double threshold = 6.0;
+
+	for (int i = 0; i < pixy.line.numVectors - 1; i++) {
+		for (int j = i + 1; j < pixy.line.numVectors; j++) {
+			Vec line0 = pixy.line.vectors[i];
+			Vec line1 = pixy.line.vectors[j];
+			//intersections[numIntersections].vec0_x0 = 2123;
+
+			if (linesIntersectAtEndpoint(line0, line1, threshold)) {
+				intersections[numIntersections].vec0_x0 = line0.m_x0;
+				intersections[numIntersections].vec0_x1 = line0.m_x1;
+				intersections[numIntersections].vec0_y0 = line0.m_y0;
+				intersections[numIntersections].vec0_y1 = line0.m_y1;
+				intersections[numIntersections].vec0_index = line0.m_index;
+
+				intersections[numIntersections].vec1_x0 = line1.m_x0;
+				intersections[numIntersections].vec1_x1 = line1.m_x1;
+				intersections[numIntersections].vec1_y0 = line1.m_y0;
+				intersections[numIntersections].vec1_y1 = line1.m_y1;
+				intersections[numIntersections].vec1_index = line1.m_index;
+				//printf("Inters %d\n", numIntersections);
+				numIntersections++;
+
+			}
+		}
+	}
+
+	return numIntersections;
+}
 
 void vec_reset(float vec[])
 {
@@ -63,7 +132,6 @@ void vec_reset(float vec[])
 		vec[i] = 0;
 	}
 }
-
 
 float medie(float v[], float i_aux)
 {
@@ -240,6 +308,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 		Vec vect0_old;
 		Vec vect1_old;
 
+		Intersection_t intersections[10] = {0};
+		int numIntersections = 0;
+
 		// Loop indefinitely and publish vector data
 		while (1) {
 			init_vectors(vect0, vect1);
@@ -247,6 +318,10 @@ int pixy_uorb_thread_main(int argc, char **argv)
 			dr = 0;
 			int nr_of_consecutive_start_lines = 0;
 			pixy.line.getAllFeatures(LINE_VECTOR, wait); // get line vectors from pixy
+
+			numIntersections = getIntersections(pixy, intersections);
+			printIntersections(intersections, numIntersections);
+			numIntersections++;
 			float length0_min = 9999.0f;
 			float length1_min = 9999.0f;
 
@@ -297,7 +372,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				if (index0 != vect0.m_index && st == 1
 				    && procent_val(std::fabs((double)(slope(vect0))),
-						   std::fabs((double)(slope(vect0_old)))) > 0.4f) {
+						   std::fabs((double)(slope(vect0_old)))) > min_vect_procent_1) {
 					vect0_old = vect0;
 					index0 = vect0.m_index;
 //					vec_reset(v0);
@@ -306,7 +381,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				} else if (st == 1
 					   && procent_val(std::fabs((double)(slope(vect0))),
-							  std::fabs((double)(slope(vect0_old)))) > 0.7f) {
+							  std::fabs((double)(slope(vect0_old)))) > min_vect_procent_2) {
 					vect0 = vect0_old;
 					index0 = 255;
 					//	printf("vect old\n");
