@@ -81,6 +81,7 @@ public:
 	float kd = 0;
 	float setp = 0;
 	float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest);
+	float elapsed_time(float current_time, float last_time);
 private:
 	void Run() override;
 	bool detectStartLine();

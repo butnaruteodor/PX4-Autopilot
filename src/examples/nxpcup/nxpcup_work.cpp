@@ -47,49 +47,55 @@ typedef enum {
 } State;
 
 // PID controller parameters
-float dt = 0.01; // 10 ms loop interval in seconds
+//float dt = 0.01; // 10 ms loop interval in seconds
 
 // PID controller internal states
 float integral = 0.0;
 float previous_error = 0.0;
 
 #if 1
-float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
-				float current_timest)
+float NxpCupWork::elapsed_time(float current_time, float last_time)
 {
-	static float last_timestep = 0;
-
-	float error = setpoint - measurement;
-	// in seconds
-	dt = static_cast<double>((double)(current_timest - last_timestep) / 1e6);
-
-	float p_term = kp * error;
-
-	float i_term_candidate = integral + error * ki * dt;
-
-	float d_term = kd * (error - previous_error) / dt;
-	previous_error = error;
-
-	float output_candidate = p_term + i_term_candidate + d_term;
-
-	// Apply output saturation limits and integral anti-windup
-	if (output_candidate > max_output) {
-		output_candidate = max_output;
-		i_term_candidate = integral; // Prevent integral windup
-
-	} else if (output_candidate < min_output) {
-		output_candidate = min_output;
-		i_term_candidate = integral; // Prevent integral windup
-	}
-
-	integral = i_term_candidate;
-	last_timestep = current_timest;
-
-	//printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
-	// (double)measurement,
-	// (double)error);
-	return output_candidate;
+    return static_cast<float>((double)(current_time - last_time) / 1e6);
 }
+
+float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
+                                float current_timest)
+{
+    static float last_timestep = 0;
+
+    float error = setpoint - measurement;
+
+    float dt = elapsed_time(current_timest, last_timestep);
+
+    float p_term = kp * error;
+
+    float i_term_candidate = integral + error * ki * dt;
+
+    float d_term = kd * (error - previous_error) / dt;
+    previous_error = error;
+
+    float output_candidate = p_term + i_term_candidate + d_term;
+
+    // Apply output saturation limits and integral anti-windup
+    if (output_candidate > max_output) {
+        output_candidate = max_output;
+        i_term_candidate = integral; // Prevent integral windup
+
+    } else if (output_candidate < min_output) {
+        output_candidate = min_output;
+        i_term_candidate = integral; // Prevent integral windup
+    }
+
+    integral = i_term_candidate;
+    last_timestep = current_timest;
+
+    //printf("SP: %4f, M: %4.2f, E: %4.2f\n", (double)setpoint,
+    // (double)measurement,
+    // (double)error);
+    return output_candidate;
+}
+
 #else
 float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
 				float current_timest)

@@ -352,7 +352,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;
 	//control.steer =.5f;
-
+	
 	return control;
 
 }
