@@ -240,7 +240,7 @@ void NxpCupWork::Run()
 	case WaitForStart: {
 			// speed is 0
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->KI, setp);
 			setp = 0;
 
 			if (detectStartLine() == true) {
@@ -256,7 +256,7 @@ void NxpCupWork::Run()
 			//setp = 80;
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->KI, setp);
 
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
@@ -281,7 +281,7 @@ void NxpCupWork::Run()
 			// Drive slowly until the obstacle is detected
 
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
+			motorControl = raceTrack(pixy, this->KP, this->KD, this->KI, setp);
 			setp = 50;
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
@@ -307,7 +307,7 @@ void NxpCupWork::Run()
 	case Stop: {
 			setp = 0;
 
-			//static float brake_time = hrt_absolute_time();
+			//static float brake_time = hrt_absolute_time()
 
 			// Car is in idle state until the start button is pressed
 			for (int i = 0; i < 1000000; i++) {
@@ -359,12 +359,16 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 {
 	NxpCupWork *instance = new NxpCupWork();
 
-	if (argc >= 3) {
+	if (argc >= 4) {
 		instance->KP = atof(argv[1]);
 		instance->KD = atof(argv[2]);
+		instance->KI = atof(argv[3]);
+		instance->setp = atof(argv[4]);
 		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
 		//(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}
+
+	//setpoint
 
 	if (instance) {
 		_object.store(instance);

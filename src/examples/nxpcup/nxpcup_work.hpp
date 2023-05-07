@@ -73,7 +73,8 @@ public:
 	bool init();
 	// steering pid
 	float KP = 1.5f;
-	float KD = 5.0f;
+	float KD = 0.5f;
+	float KI = 0.0f;
 	int print_status() override;
 	// Motor pid
 	float kp = 0.003;

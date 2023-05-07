@@ -75,7 +75,7 @@ struct Vector {
 	uint8_t m_y1;
 };
 
-roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &setpoint);
+roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float ki, float &setpoint);
 uint8_t get_num_vectors(Vector &vec1, Vector &vec2);
 Vector copy_vectors(pixy_vector_s &pixy, uint8_t num);
 
