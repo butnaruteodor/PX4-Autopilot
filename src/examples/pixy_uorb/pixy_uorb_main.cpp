@@ -384,9 +384,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 				}
 
 				isValid = true;
-				printf("Angle %f\n", (double)angleLines(intersections[0].vec0_x0, intersections[0].vec0_x1, intersections[0].vec0_y0,
-									intersections[0].vec0_y1, intersections[0].vec1_x0, intersections[0].vec1_x1,
-									intersections[0].vec1_y0, intersections[0].vec1_y1));
+				// printf("Angle %f\n", (double)angleLines(intersections[0].vec0_x0, intersections[0].vec0_x1, intersections[0].vec0_y0,
+				// 					intersections[0].vec0_y1, intersections[0].vec1_x0, intersections[0].vec1_x1,
+				// 					intersections[0].vec1_y0, intersections[0].vec1_y1));
 
 			} else {
 				if (isValid == true) {
