@@ -53,6 +53,26 @@ float dt = 0.01; // 10 ms loop interval in seconds
 float integral = 0.0;
 float previous_error = 0.0;
 
+void brake(unsigned long pwm_value)
+{
+	const char *dev = "/dev/pwm_output0";
+	int fd = px4_open(dev, 0);
+
+	if (fd < 0) {
+		PX4_ERR("can't open %s", dev);
+		return;
+	}
+
+	int ret = px4_ioctl(fd, PWM_SERVO_SET(3), pwm_value);
+
+	if (ret != OK) {
+		PX4_ERR("failed setting brake");
+	}
+
+	if (fd >= 0) {
+		px4_close(fd);
+	}
+}
 #if 1
 float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
 				float current_timest)
@@ -185,6 +205,8 @@ void NxpCupWork::Run()
 		return;
 	}
 
+	static bool isBraking = false;
+	static float brake_time = 0;
 	//printf("merge\n");
 	perf_begin(_loop_perf);
 	perf_count(_loop_interval_perf);
@@ -193,7 +215,7 @@ void NxpCupWork::Run()
 	static float control_output = 0.0f;
 	roverControl motorControl;
 
-	static State CarState = Driving;
+	static State CarState = ObstacleDetection;
 
 	static int nr_of_distance_readings = 0;
 	// used for start line detection debouncing
@@ -261,10 +283,10 @@ void NxpCupWork::Run()
 
 	case ObstacleDetection: {
 			// Drive slowly until the obstacle is detected
-			setp = 50;
+			setp = 200;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
-
+			static float brakeAtTime = hrt_absolute_time();
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
@@ -278,9 +300,11 @@ void NxpCupWork::Run()
 
 			printf("Distance %f\n", static_cast<double>(readDistance()));
 
-			if (nr_of_distance_readings > 1) {
+			// Drive for 5 seconds then brake
+			if (hrt_absolute_time() - brakeAtTime > 8000000) {
 
 				CarState = Stop;
+				brake_time = hrt_absolute_time();
 			}
 
 			break;
@@ -288,34 +312,49 @@ void NxpCupWork::Run()
 
 	case Stop: {
 			setp = 0;
+
 			// Car is in idle state until the start button is pressed
 			// for (int i = 0; i < 1000; i++) {
 			// 	brake(1501);
 			// }
 			//CarState = WaitForStart;
+			//brake(900);
+			if (hrt_absolute_time() - brake_time > 2000000) {
+				_att_sp.thrust_body[0] = 0;
+				isBraking = false;
+				printf("Not braking anymore\n");
+
+			} else {
+				//_att_sp.thrust_body[0] = -1.0f;
+				brake(700);
+				isBraking = true;
+				printf("Braking\n");
+			}
+
 			break;
 		}
 
 	}
 
-	// Here we calculate the control output based on the setpoint and the current measurement
-	float current_measurement = rev_s.frequency;
-	control_output = calculate_pid(setp, current_measurement, -0.1f, 0.25f, hrt_absolute_time());
+	if (!isBraking) {
+		// Here we calculate the control output based on the setpoint and the current measurement
+		float current_measurement = rev_s.frequency;
+		control_output = calculate_pid(setp, current_measurement, -0.1f, 0.25f, hrt_absolute_time());
 
-	static float prev_printing_time = 0;
+		static float prev_printing_time = 0;
 
-	if (hrt_absolute_time() - prev_printing_time > 50000) {
-		prev_printing_time = hrt_absolute_time();
-		printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
-		       (double)current_measurement,
-		       (double)control_output);
+		if (hrt_absolute_time() - prev_printing_time > 50000) {
+			prev_printing_time = hrt_absolute_time();
+			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
+			       (double)current_measurement,
+			       (double)control_output);
+		}
+
+		_att_sp.thrust_body[0] = control_output;
+		_att_sp.timestamp = hrt_absolute_time();
+
+		_att_sp_pub.publish(_att_sp);
 	}
-
-	_att_sp.thrust_body[0] = control_output;
-
-	_att_sp.timestamp = hrt_absolute_time();
-
-	_att_sp_pub.publish(_att_sp);
 
 	perf_end(_loop_perf);
 }

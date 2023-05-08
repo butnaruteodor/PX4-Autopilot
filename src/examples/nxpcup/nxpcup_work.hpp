@@ -78,8 +78,8 @@ public:
 	int print_status() override;
 
 	float kp = 0.003;
-	float ki = 1e-3;
-	float kd = 0;
+	float ki = 0.001;
+	float kd = 0.0001;
 	float setp = 0;
 	float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest);
 private:

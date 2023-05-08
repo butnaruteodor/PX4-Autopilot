@@ -158,6 +158,7 @@ void UUVPOSControl::Run()
 		return;
 	}
 
+	printf("UUV\n");
 	perf_begin(_loop_perf);
 
 	/* check vehicle control mode for changes to publication state */

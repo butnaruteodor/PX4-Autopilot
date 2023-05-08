@@ -390,6 +390,7 @@ void
 RoverPositionControl::Run()
 {
 	parameters_update(true);
+	//printf("ROVER\n");
 
 	if (_vehicle_attitude_sub.update(&_vehicle_att)) {
 
