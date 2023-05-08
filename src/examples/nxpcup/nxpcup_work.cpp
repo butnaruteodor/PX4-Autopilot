@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
- 
+
 #include "nxpcup_work.hpp"
 
 #include <drivers/drv_hrt.h>
@@ -192,7 +192,7 @@ void NxpCupWork::Run()
 	// DO WORK
 	static float control_output = 0.0f;
 	roverControl motorControl;
-  
+
 	static State CarState = Driving;
 
 	static int nr_of_distance_readings = 0;
@@ -221,9 +221,10 @@ void NxpCupWork::Run()
 	case WaitForStart: {
 			// speed is 0
 			setp = 0;
+
 			// get control commands based on lane lines
-			motorControl = raceTrack(pixy, this->KP, this->KD);
-      
+			//motorControl = raceTrack(pixy, this->KP, this->KD);
+
 			if (detectStartLine() == true) {
 				last_time = hrt_absolute_time();
 				CarState = Driving;
@@ -234,13 +235,13 @@ void NxpCupWork::Run()
 
 	case Driving: {
 			// Car is driving
-			setp = 80;
+			//setp = 80;
 
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy, this->KP, this->KD, this->SPEED_MAX, this->SPEED_MIN);
 
 			// pre process the controls(convert steering from percent to angle, etc)
-			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
+			//NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
 			current_time = hrt_absolute_time();
 
@@ -284,6 +285,7 @@ void NxpCupWork::Run()
 
 			break;
 		}
+
 	case Stop: {
 			setp = 0;
 			// Car is in idle state until the start button is pressed
@@ -298,7 +300,7 @@ void NxpCupWork::Run()
 
 	// Here we calculate the control output based on the setpoint and the current measurement
 	float current_measurement = rev_s.frequency;
-	control_output = calculate_pid(setp, current_measurement, 0.05f, 0.25f, hrt_absolute_time());
+	control_output = calculate_pid(setp, current_measurement, -0.1f, 0.25f, hrt_absolute_time());
 
 	static float prev_printing_time = 0;
 
@@ -323,11 +325,13 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 {
 	NxpCupWork *instance = new NxpCupWork();
 
-	if (argc >= 3) {
-		instance->KP = atof(argv[1]);
-		instance->KD = atof(argv[2]);
+	if (argc >= 5) {
+		instance->kp = atof(argv[1]);
+		instance->ki = atof(argv[2]);
+		instance->kd = atof(argv[3]);
+		instance->setp = atof(argv[4]);
 		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
-		       //(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
+		//(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}
 
 	if (instance) {
