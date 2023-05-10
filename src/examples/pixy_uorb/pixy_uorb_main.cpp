@@ -206,21 +206,67 @@ float slope(int x0, int y0, int x1, int y1)
 
 	} else {
 		float panta = (y1 - y0) / (x1 - x0);
-		return (double)(panta);
+		return panta;
 	}
 }
-// get angle in degrees between two lines
-float angleLines(int line1_x0, int line1_x1, int line1_y0,
-		 int line1_y1, int line2_x0, int line2_x1,
-		 int line2_y0, int line2_y1)
+// float norm(int x0, int y0, int x1, int y1)
+// {
+// 	float norm = sqrt(pow((float)(x1 - x0), 2) + pow((float)(y1 - y0), 2));
+// 	return (double)(norm);
+// }
+double angle_between_segments(int line1_x0, int line1_y0, int line1_x1, int line1_y1,
+			      int line2_x0, int line2_y0, int line2_x1, int line2_y1)
 {
-	float slope1 = slope(line1_x0, line1_y0, line1_x1, line1_y1);
-	float slope2 = slope(line2_x0, line2_y0, line2_x1, line2_y1);
+	int vec_a_x = line1_x1 - line1_x0;
+	int vec_a_y = line1_y1 - line1_y0;
+	int vec_b_x = line2_x1 - line2_x0;
+	int vec_b_y = line2_y1 - line2_y0;
 
-	float angle = std::atan((double)((slope1 - slope2) / (1 + slope1 * slope2))) * 180 / M_PI;
+	double norm_a = std::sqrt(vec_a_x * vec_a_x + vec_a_y * vec_a_y);
+	double norm_b = std::sqrt(vec_b_x * vec_b_x + vec_b_y * vec_b_y);
 
-	return angle;
+	//printf("%f %f\n", (double)norm_a, (double)norm_b);
+
+	if (std::abs(norm_a) < 0.01f || std::abs(norm_b) < 0.01f) {
+		// One or both of the segments have zero length, so the angle is undefined.
+		//printf("undefined\n");
+		return 0;
+	}
+
+	double dot = vec_a_x * vec_b_x + vec_a_y * vec_b_y;
+	double cos_angle = dot / (norm_a * norm_b);
+
+	// Ensure cos_angle is within the valid range for acos function [-1, 1]
+	if (cos_angle > 1.0) {
+		cos_angle = 1.0;
+
+	} else if (cos_angle < -1.0) {
+		cos_angle = -1.0;
+	}
+
+	double angle_rad = std::acos(cos_angle);
+
+	// Convert radians to degrees
+	double angle_deg = angle_rad * 180.0 / M_PI;
+
+	return angle_deg;
 }
+// get angle in degrees between two lines
+// float angleLines(int line1_x0, int line1_x1, int line1_y0,
+// 		 int line1_y1, int line2_x0, int line2_x1,
+// 		 int line2_y0, int line2_y1)
+// {
+// 	float slope1 = slope(line1_x0, line1_y0, line1_x1, line1_y1);
+// 	float slope2 = slope(line2_x0, line2_y0, line2_x1, line2_y1);
+
+// 	if (fabs(1 + slope1 * slope2) > 0.01) {
+
+// 	}
+
+// 	float angle = std::atan((double)((slope1 - slope2) / (1 + slope1 * slope2))) * 180 / M_PI;
+
+// 	return angle;
+// }
 uint8_t get_nums_vectors(Vec &vec1, Vec &vec2)
 {
 
@@ -329,8 +375,8 @@ int pixy_uorb_thread_main(int argc, char **argv)
 	static uint8_t index1 = 0;
 
 	//bool used to detect when the mostVerticalVect line transitions from a valid line to 0,0,0,0 line
-	//bool mostVerticalVectTransitioned = false;
-	bool isValid = false;
+	//bool exitingIntersection = false;
+	//bool isValid = false;
 
 	// Make sure pixy is ready
 	if (pixy.init() == 0) {
@@ -344,8 +390,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 		Vec vect0_old;
 		Vec vect1_old;
 		//Vec intersection_vect = {0};
-
+		Vec mostVerticalVect = {0};
 		Intersection_t intersections[10] = {0};
+		Vec badIntersectionVec = {0};
 		int numIntersections = 0;
 
 		// Loop indefinitely and publish vector data
@@ -353,11 +400,10 @@ int pixy_uorb_thread_main(int argc, char **argv)
 			init_vectors(vect0, vect1);
 			st = 0;
 			dr = 0;
-			//int nr_of_consecutive_start_lines = 0;
+			//int nr_of_consecutive_start_lines = 0;s
 			pixy.line.getAllFeatures(LINE_VECTOR, wait); // get line vectors from pixy
 
 			numIntersections = getIntersections(pixy, intersections);
-			Vec mostVerticalVect = {0};
 
 			//printIntersections(intersections, numIntersections);
 			//numIntersections++;
@@ -375,25 +421,41 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					(u_int8_t)intersections[0].vec1_x1, (u_int8_t)intersections[0].vec1_y1,
 					(u_int8_t)intersections[0].vec1_index, 0
 				};
+				double angle = angle_between_segments(
+						       intersections[0].vec0_x0, intersections[0].vec0_y0,
+						       intersections[0].vec0_x1, intersections[0].vec0_y1,
+						       intersections[0].vec1_x0, intersections[0].vec1_y0,
+						       intersections[0].vec1_x1, intersections[0].vec1_y1);
 
-				if (slope0 > slope1) {
-					assignVect(mostVerticalVect, vecInters0);
+				if (abs(angle) > 80.0 && abs(angle) < 100.0) {
+					// printf("Angle %f\n", angle);
+					// printf("Line1: (%2d, %2d) (%2d, %2d) Index: %3d ; Line2: (%2d, %2d) (%2d, %2d) Index: %3d\n",
+					//        intersections[0].vec0_x0, intersections[0].vec0_y0, intersections[0].vec0_x1, intersections[0].vec0_y1,
+					//        intersections[0].vec0_index,
+					//        intersections[0].vec1_x0, intersections[0].vec1_y0, intersections[0].vec1_x1, intersections[0].vec1_y1,
+					//        intersections[0].vec1_index);
+					//printf("slope0 %lf,slope1 %lf\n", (double)slope0, (double)slope1);
 
-				} else {
-					assignVect(mostVerticalVect, vecInters1);
+					if (fabs(slope0) > fabs(slope1)) {
+						assignVect(mostVerticalVect, vecInters0);
+						assignVect(badIntersectionVec, vecInters1);
+
+					} else {
+						assignVect(mostVerticalVect, vecInters1);
+						assignVect(badIntersectionVec, vecInters0);
+					}
+
+					printVect(mostVerticalVect, "Most vertical vector");
+					printVect(badIntersectionVec, "Bad intersection vector");
+					//isValid = true;
 				}
-
-				isValid = true;
-				// printf("Angle %f\n", (double)angleLines(intersections[0].vec0_x0, intersections[0].vec0_x1, intersections[0].vec0_y0,
-				// 					intersections[0].vec0_y1, intersections[0].vec1_x0, intersections[0].vec1_x1,
-				// 					intersections[0].vec1_y0, intersections[0].vec1_y1));
 
 			} else {
-				if (isValid == true) {
-					isValid = false;
-					//mostVerticalVectTransitioned = true;
-					//printf("O ia pe pula\n");
-				}
+				// if (isValid == true) {
+				// 	isValid = false;
+				// 	//exitingIntersection = true;
+				// 	//printf("Iese\n");
+				// }
 			}
 
 			//printVect(mostVerticalVect, "Most vertical vector");
@@ -444,9 +506,34 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					}
 				}
 
-				if (numIntersections) {
+				//if (numIntersections != 0 && exitingIntersection == true) {
+				//exitingIntersection = false;
 
+				// if (st = 0) {
+				// 	if()
+				// 	assignVect(vect1, mostVerticalVect);
+
+				// } else if (dr = 0) {
+				// 	assignVect(vect0, mostVerticalVect);
+				// }
+				//printVect(mostVerticalVect, "Most vertical: ");
+
+				if (vect1.m_index == badIntersectionVec.m_index) {
+					printVect(vect1, "Vector prost1: ");
+					//printVect(mostVerticalVect, "Vector bun1: ");
+					assignVect(vect1, mostVerticalVect);
+					printVect(vect1, "Vector bun1: ");
 				}
+
+				if (vect0.m_index == badIntersectionVec.m_index) {
+					printVect(vect0, "Vector prost0: ");
+					//printVect(mostVerticalVect, "Vector bun0: ");
+					assignVect(vect0, mostVerticalVect);
+					printVect(vect0, "Vector bun0: ");
+				}
+
+				printVect(vect0, "Vector 0: ");
+				//}
 
 				if (index0 != vect0.m_index && st == 1
 				    && procent_val(std::fabs((double)(slope(vect0))),
@@ -488,6 +575,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				}
 
+				printVect(vect0, "Vector 0 dupa indecsi: ");
 				// printf("vect0: x0= %d, y0=%d, x1=%d, y1=%d , m=%lf , index=%d\n", vect0.m_x0, vect0.m_y0, vect0.m_x1, vect0.m_y1,
 				//        std::fabs((double)(slope(vect0))), vect0.m_index);
 				// printf("vect1: x0= %d, y0=%d, x1=%d, y1=%d, m=%lf, index=%d\n", vect1.m_x0, vect1.m_y0, vect1.m_x1, vect1.m_y1,
