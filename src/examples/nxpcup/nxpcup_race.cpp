@@ -182,7 +182,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 		break;
 
 	case 2: {
-			printf("Case 2\n");
+			//printf("Case 2\n");
 			main_vec.m_x1 = (vec1.m_x1 + vec2.m_x1) / 2;
 			main_vec.m_x0 = (vec1.m_x0 + vec2.m_x0) / 2;
 			main_vec.m_y1 = (vec1.m_y1 + vec2.m_y1) / 2;
@@ -285,7 +285,8 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 
 	default: {
 			Vector single_vec;
-			printf("default\n");
+
+			//printf("default\n");
 
 			if (vec1.m_x0 != 0 || vec1.m_y0 != 0 || vec1.m_x1 != 0 || vec1.m_y1 != 0) {
 				single_vec = vec1;
@@ -349,9 +350,9 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 
 	}
 
-	setpoint = (double)120.0 - 50.0 * std::fabs(control.steer);
+	setpoint = (double)125.0 - 60.0 * std::fabs(control.steer);
 	//setpoint = 0;
-	KP = 1.0f + (120.0f - setpoint) / 120.0f * 1.4f;
+	KP = 0.5f + (125.0f - setpoint) / 125.0f * 1.4f;
 //	KD = 1.1f + (120.0f - setpoint) / 120.0f * 2.0f;
 	//control.speed = (double)scaled_speed;
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));

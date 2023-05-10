@@ -54,15 +54,29 @@ float integral = 0.0;
 float previous_error = 0.0;
 
 #if 1
-float NxpCupWork::calculate_pid(float setpoint, float measurement, float min_output, float max_output,
+float NxpCupWork::calculate_pid(float ref, float measurement, float min_output, float max_output,
 				float current_timest)
 {
 	static float last_timestep = 0;
+	static float setpoint = 0.0f;
 
-	float error = setpoint - measurement;
+
 	// in seconds
 	dt = static_cast<double>((double)(current_timest - last_timestep) / 1e6);
+	float accmax_step = acc * dt;
+	float decmax_step = dec * dt;
 
+	if (ref - setpoint > accmax_step) {
+		setpoint += accmax_step;
+
+	} else if (ref - setpoint < -decmax_step) {
+		setpoint -= decmax_step;
+
+	} else {
+		setpoint = ref;
+	}
+
+	float error = setpoint - measurement;
 	float p_term = kp * error;
 
 	float i_term_candidate = integral + error * ki * dt;
@@ -212,7 +226,7 @@ void NxpCupWork::Run()
 	static float control_output = 0.0f;
 	roverControl motorControl;
 
-	static State CarState = ObstacleDetection;
+	static State CarState = Driving;
 	static bool isBraking = false;
 	static int nr_of_distance_readings = 0;
 	// used for start line detection debouncing
@@ -276,7 +290,7 @@ void NxpCupWork::Run()
 
 				if (nr == 1) {
 					//printf("OBSTACLE DETECTION\n");
-					CarState = ObstacleDetection;
+					//CarState = ObstacleDetection;
 					nr = 0;
 				}
 			}
@@ -289,24 +303,37 @@ void NxpCupWork::Run()
 			isBraking = false;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
-			//setp = 50;
+			setp = 80;
+
+			//KP = 1.8f;
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
+			//_att_sp.thrust_body[0] = 0.14f;
+
 			// code that counts the number of consecutive start lines using the start line detection function
 			if (readDistance() <= 0.05f) {
-				nr_of_distance_readings++;
+				for (int i = 0; i < 50; i++) {
+					_att_sp.thrust_body[0] = -1.0f;
+					_att_sp_pub.publish(_att_sp);
+				}
+
+				isBraking = true;
 
 			} else {
-				nr_of_distance_readings = 0;
+
+				isBraking = false;
 			}
+
+
+			//printf("Setpoint %f\n", (double)setp);
 
 			// printf("Distance %f\n", static_cast<double>(readDistance()));
 
 			if (nr_of_distance_readings > 1) {
 
-				CarState = Stop;
-				//isBraking = true;
+				// CarState = Stop;
+				// //isBraking = true;
 			}
 
 			break;
@@ -344,15 +371,19 @@ void NxpCupWork::Run()
 
 		if (hrt_absolute_time() - prev_printing_time > 50000) {
 			prev_printing_time = hrt_absolute_time();
-			//printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
-			//(double)current_measurement,
-			//(double)control_output);
+			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
+			       (double)current_measurement,
+			       (double)control_output);
+		}
+
+		if (current_measurement > 20 && control_output < -0.05f && CarState == ObstacleDetection) {
+			control_output = 0;
 		}
 
 		_att_sp.thrust_body[0] = control_output;
 		_att_sp.timestamp = hrt_absolute_time();
-
 		_att_sp_pub.publish(_att_sp);
+
 	}
 
 
@@ -366,9 +397,9 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 	NxpCupWork *instance = new NxpCupWork();
 
 	if (argc >= 3) {
-		instance->KP = atof(argv[1]);
-		instance->KD = atof(argv[2]);
-		instance->setp = atof(argv[3]);
+		instance->kp = atof(argv[1]);
+		instance->ki = atof(argv[2]);
+		instance->kd = atof(argv[3]);
 		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
 		//(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}

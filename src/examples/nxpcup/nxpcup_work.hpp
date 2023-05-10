@@ -80,6 +80,8 @@ public:
 	float ki = 1e-3;
 	float kd = 0.00001;
 	float setp = 0;
+	float acc = 125 / 0.1f;
+	float dec = 4 * acc;
 	float calculate_pid(float setpoint, float measurement, float min_output, float max_output, float current_timest);
 private:
 	void Run() override;
