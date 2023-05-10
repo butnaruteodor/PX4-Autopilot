@@ -16,8 +16,8 @@ float SPEED_MAX = 0.15f;
 float SPEED_MIN = 0.15f;
 //when are suden
 //const float KP_MIN = 1.0f;
-float KP = 1.5f;
-float KD = 5.0f;
+float KP = 2.0f;
+float KD = 0.0f;
 
 
 const float BATTERY_VOLTAGE_MIN = 6.2f;
@@ -182,6 +182,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 		break;
 
 	case 2: {
+			printf("Case 2\n");
 			main_vec.m_x1 = (vec1.m_x1 + vec2.m_x1) / 2;
 			main_vec.m_x0 = (vec1.m_x0 + vec2.m_x0) / 2;
 			main_vec.m_y1 = (vec1.m_y1 + vec2.m_y1) / 2;
@@ -284,6 +285,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 
 	default: {
 			Vector single_vec;
+			printf("default\n");
 
 			if (vec1.m_x0 != 0 || vec1.m_y0 != 0 || vec1.m_x1 != 0 || vec1.m_y1 != 0) {
 				single_vec = vec1;
@@ -298,7 +300,7 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 			float single_vec_slope = (float)(single_vec.m_y1 - single_vec.m_y0) / (float)(single_vec.m_x1 - single_vec.m_x0);
 			float single_vec_midpoint_x = (float)(single_vec.m_x1 + single_vec.m_x0) / 2;
 
-			float base_lane_width = 78.0f;
+			float base_lane_width = 79.0f;
 			//float modulation = lane_width_modulation(single_vec_slope);
 			float estimated_lane_width = base_lane_width; //* modulation;
 			float estimated_other_boundary_midpoint_x;
@@ -347,12 +349,15 @@ roverControl raceTrack(const pixy_vector_s &pixy, float kp, float kd, float &set
 
 	}
 
-	setpoint = 60;
+	setpoint = (double)120.0 - 50.0 * std::fabs(control.steer);
+	//setpoint = 0;
+	KP = 1.0f + (120.0f - setpoint) / 120.0f * 1.4f;
+//	KD = 1.1f + (120.0f - setpoint) / 120.0f * 2.0f;
 	//control.speed = (double)scaled_speed;
 	//  printf("speed = %f    battery = %f\n", static_cast<double>(control.speed), static_cast<double>(battery_voltage));
 	//control.speed = 1;
 	//control.steer =.5f;
-
+	// control.steer = 0.0f;
 	return control;
 
 }

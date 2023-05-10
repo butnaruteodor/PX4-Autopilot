@@ -3,8 +3,8 @@
 #include <math.h>
 
 
-float min_vect_procent_1 = 0.4f;
-float min_vect_procent_2 = 0.7f;
+float min_vect_procent_1 = 0.2f;
+float min_vect_procent_2 = 0.8f;
 
 using namespace matrix;
 
@@ -254,9 +254,9 @@ int pixy_uorb_thread_main(int argc, char **argv)
 				// extrag cei mai lungi vectori verticali
 				for (int i = 0; i < pixy.line.numVectors; i++) {
 					Vec line = pixy.line.vectors[i];
-					line.m_y0 = 51 - line.m_y0;
-					line.m_y1 = 51 - line.m_y1;
-					//float length = lineLength(line);
+					line.m_y0 = 52 - line.m_y0;
+					line.m_y1 = 52 - line.m_y1;
+					float length = lineLength(line);
 					float absSlope = std::fabs((double)(slope(
 							line)));// now we are comparing the true floating point number of the slope
 
@@ -276,8 +276,8 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					}
 
 					// if vector is vertical and at the left of the frame
-					if (/*(double)(length) > (double)(lineLength(vect0))*/dist(line) < length0_min && (double)(absSlope) >= 0.3
-							&& (double)(line.m_x0) < 39) {
+					if ((double)(length) > (double)(lineLength(vect0)) && dist(line) < length0_min && (double)(absSlope) >= 0.3
+					    && (double)(line.m_x0) < 39) {
 						// vector is good
 						vect0 = line;
 						st = 1;
@@ -285,8 +285,8 @@ int pixy_uorb_thread_main(int argc, char **argv)
 					}
 
 					// if vector is vertical and at the right of the frame
-					if (/*(double)(length) > (double)(lineLength(vect1))*/dist(line) < length1_min && (double)(absSlope) >= 0.3
-							&& (double)(line.m_x0) >= 39) {
+					if ((double)(length) > (double)(lineLength(vect1)) && dist(line) < length1_min && (double)(absSlope) >= 0.3
+					    && (double)(line.m_x0) >= 39) {
 						// vector is good
 						vect1 = line;
 						dr = 1;
@@ -297,7 +297,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				if (index0 != vect0.m_index && st == 1
 				    && procent_val(std::fabs((double)(slope(vect0))),
-						   std::fabs((double)(slope(vect0_old)))) > 0.4f) {
+						   std::fabs((double)(slope(vect0_old)))) > min_vect_procent_1) {
 					vect0_old = vect0;
 					index0 = vect0.m_index;
 //					vec_reset(v0);
@@ -306,7 +306,7 @@ int pixy_uorb_thread_main(int argc, char **argv)
 
 				} else if (st == 1
 					   && procent_val(std::fabs((double)(slope(vect0))),
-							  std::fabs((double)(slope(vect0_old)))) > 0.7f) {
+							  std::fabs((double)(slope(vect0_old)))) > min_vect_procent_2) {
 					vect0 = vect0_old;
 					index0 = 255;
 					//	printf("vect old\n");

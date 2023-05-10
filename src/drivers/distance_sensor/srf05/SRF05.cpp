@@ -155,7 +155,8 @@ SRF05::measure()
 	const float current_distance = dt *  343.0f / 10e6f / 2.0f;
 
 	if (dt > HXSRX0X_CONVERSION_TIMEOUT) {
-		perf_count(_comms_errors);
+		//perf_count(_comms_errors);
+		_px4_rangefinder.update(timestamp_sample, 0.5f);
 
 	} else {
 		_px4_rangefinder.update(timestamp_sample, current_distance);

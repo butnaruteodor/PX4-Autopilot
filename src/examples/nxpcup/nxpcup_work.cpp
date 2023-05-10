@@ -212,7 +212,7 @@ void NxpCupWork::Run()
 	static float control_output = 0.0f;
 	roverControl motorControl;
 
-	static State CarState = Idle;
+	static State CarState = ObstacleDetection;
 	static bool isBraking = false;
 	static int nr_of_distance_readings = 0;
 	// used for start line detection debouncing
@@ -227,8 +227,15 @@ void NxpCupWork::Run()
 
 	att_sub.update();
 
+
 	struct vehicle_attitude_s att = att_sub.get();
 	struct vehicle_attitude_setpoint_s _att_sp {};
+	static int div = 0;
+
+	if (div++ > 4) {
+		div = 0;
+		printf("Distance %f\n", static_cast<double>(readDistance()));
+	}
 
 	switch (CarState) {
 	case Idle: {
@@ -279,10 +286,10 @@ void NxpCupWork::Run()
 
 	case ObstacleDetection: {
 			// Drive slowly until the obstacle is detected
-
+			isBraking = false;
 			// get control commands based on lane lines
 			motorControl = raceTrack(pixy, this->KP, this->KD, setp);
-			setp = 50;
+			//setp = 50;
 			// pre process the controls(convert steering from percent to angle, etc)
 			NxpCupWork::roverSteerSpeed(motorControl, _att_sp, att);
 
@@ -294,35 +301,33 @@ void NxpCupWork::Run()
 				nr_of_distance_readings = 0;
 			}
 
-			printf("Distance %f\n", static_cast<double>(readDistance()));
+			// printf("Distance %f\n", static_cast<double>(readDistance()));
 
 			if (nr_of_distance_readings > 1) {
 
 				CarState = Stop;
+				//isBraking = true;
 			}
 
 			break;
 		}
 
 	case Stop: {
-			setp = 0;
+			printf("Frana\n");
 
-			//static float brake_time = hrt_absolute_time();
-
-			// Car is in idle state until the start button is pressed
-			for (int i = 0; i < 1000000; i++) {
-				brake(900);
-			}
-
-			brake(1502);
-			// if (hrt_absolute_time() - brake_time < 5000000) {
-			// 	_att_sp.thrust_body[0] = -1;
-
-			// } else {
-			// 	_att_sp.thrust_body[0] = 0.03;
+			// for (int i = 0 ; i < 100; i++) {
+			// 	_att_sp.thrust_body[0] = -1.0f;
+			// 	_att_sp_pub.publish(_att_sp);
 			// }
 
-			CarState = Driving;
+			setp = 0;
+			// if (rev_s.frequency < 0.00001f) {
+			// 	CarState = ObstacleDetection;
+			// 	//isBraking = false;
+			// 	//usleep(10000);
+			// }
+
+			//CarState = Driving;
 			//isBraking = true;
 			break;
 		}
@@ -333,23 +338,24 @@ void NxpCupWork::Run()
 	float current_measurement = rev_s.frequency;
 
 	if (isBraking == false) {
-		control_output = calculate_pid(setp, current_measurement, 0.05f, 0.25f, hrt_absolute_time());
+		control_output = calculate_pid(setp, current_measurement, -1.0f, 0.5f, hrt_absolute_time());
 
 		static float prev_printing_time = 0;
 
 		if (hrt_absolute_time() - prev_printing_time > 50000) {
 			prev_printing_time = hrt_absolute_time();
-			printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
-			       (double)current_measurement,
-			       (double)control_output);
+			//printf("Setpoint: %4f, Current frequency: %4.2f, Control output: %4.2f\n", (double)setp,
+			//(double)current_measurement,
+			//(double)control_output);
 		}
 
 		_att_sp.thrust_body[0] = control_output;
+		_att_sp.timestamp = hrt_absolute_time();
+
+		_att_sp_pub.publish(_att_sp);
 	}
 
-	_att_sp.timestamp = hrt_absolute_time();
 
-	_att_sp_pub.publish(_att_sp);
 
 	perf_end(_loop_perf);
 }
@@ -362,6 +368,7 @@ int NxpCupWork::task_spawn(int argc, char *argv[])
 	if (argc >= 3) {
 		instance->KP = atof(argv[1]);
 		instance->KD = atof(argv[2]);
+		instance->setp = atof(argv[3]);
 		//printf("argv[4] = %f, argv[5] = %f, argv[6] = %f, argv[7] = %f\n", (double)instance->KP, (double)instance->KD,
 		//(double)instance->SPEED_MAX, (double)instance->SPEED_MIN);
 	}
